@@ -1,0 +1,69 @@
+# Trade Bot Configuration
+
+ibkr:
+  host: "127.0.0.1"
+  port: 5000           # IB Gateway port
+  client_id: 12
+  account: null        # optional, for multi-account setups
+
+mode: "paper"          # "paper" | "live"
+
+watchlist: 
+  - "TSLA"
+  - "NVDA"
+  - "SMCI"
+  - "META"
+  - "AAPL"
+  - "AMD"
+  - "GOOGL"
+  - "AMZN"
+  - "MSFT"
+  - "NFLX"
+
+allocation:
+  # Dollar-based sizing to cap risk per symbol and overall
+  total_usd_cap: 20000
+  per_symbol_usd: 1000         # default per-symbol budget
+  per_symbol_override: {}       # e.g., {"TSLA": 1500}
+  min_cash_reserve_percent: 10
+  allow_fractional: false       # set true if your account allows fractional
+
+entries:
+  type: "buy_stop"              # "buy_stop" | "buy_stop_limit"
+  buy_stop_pct_above_last: 5.0
+  stop_limit_max_slip_pct: 1.0  # only used if type == buy_stop_limit
+  tif: "DAY"
+  cancel_at_close: true
+  rearm_next_session: true
+
+stops:
+  trailing_stop_pct: 10.0
+  use_trailing_limit: false     # if true, convert to TRAIL LIMIT with limit offset
+  trail_limit_offset_pct: 0.2   # if above is true
+  tif: "GTC"
+
+hours:
+  calendar: "XNYS"
+  allow_pre_market: false
+  allow_after_hours: false
+
+cooldowns:
+  after_stopout_minutes: 20     # 15–30 suggested
+
+polling:
+  price_seconds: 10
+  orders_seconds: 15
+
+risk:
+  max_total_exposure_usd: 20000
+  max_symbol_exposure_usd: 2000
+
+persistence:
+  db_url: "sqlite:///bot.db"
+
+logging:
+  level: "INFO"
+
+alerts:
+  webhook: null
+
