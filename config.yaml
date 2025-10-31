@@ -9,16 +9,20 @@ ibkr:
 mode: "paper"          # "paper" | "live"
 
 watchlist: 
-  - "TSLA"
-  - "NVDA"
-  - "SMCI"
-  - "META"
-  - "AAPL"
-  - "AMD"
-  - "GOOGL"
-  - "AMZN"
-  - "MSFT"
-  - "NFLX"
+  - "BBBY"
+  - "BYND"
+  - "UUUU"
+  - "OKLO"
+  - "GME"
+  - "AMC"
+  - "BB"
+  - "IOVA"
+  - "WEN"
+  - "BULL"
+  - "OPEN"
+  - "KSS"
+  - "DNUT"
+  - "GPRO"
 
 allocation:
   # Dollar-based sizing to cap risk per symbol and overall
