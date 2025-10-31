@@ -59,6 +59,7 @@ class TradingBot:
         self.last_order_check = datetime.min
         self.last_eod_cancel = None
         self.last_snapshot_date = None
+        self.last_keepalive = datetime.min
         
         logger.info(
             "trading_bot_initialized",
@@ -130,6 +131,8 @@ class TradingBot:
                     await self._process_trading_logic()
                 else:
                     logger.debug("outside_trading_hours")
+                    # Keep connection alive even when market is closed
+                    await self._keepalive_tick()
                     await asyncio.sleep(60)  # Check every minute when market is closed
                     continue
                 
@@ -138,6 +141,9 @@ class TradingBot:
                 
                 # Take daily performance snapshot
                 await self._take_daily_snapshot()
+                
+                # Keep-alive ping to prevent connection timeout
+                await self._keepalive_tick()
                 
                 # Sleep based on polling interval
                 await asyncio.sleep(self.config.polling.orders_seconds)
@@ -199,6 +205,16 @@ class TradingBot:
                         session,
                         event_type="eod_cancellations_completed",
                     )
+
+    async def _keepalive_tick(self):
+        """Send periodic keep-alive to IBKR to prevent timeout."""
+        now = datetime.utcnow()
+        
+        # Send keep-alive based on configured interval
+        interval = self.config.polling.keepalive_seconds
+        if (now - self.last_keepalive).total_seconds() >= interval:
+            await self.ibkr.keep_alive()
+            self.last_keepalive = now
 
     async def _take_daily_snapshot(self):
         """Take daily performance snapshot."""

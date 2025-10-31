@@ -357,3 +357,15 @@ class IBKRClient:
         """Register callback for order status events."""
         self.on_order_status_callback = callback
 
+    async def keep_alive(self):
+        """
+        Keep-alive tickle to prevent IBKR Gateway timeout.
+        Makes a lightweight request to keep the connection active.
+        """
+        try:
+            # Request current server time - lightweight operation
+            time = self.ib.reqCurrentTime()
+            logger.debug("keepalive_ping", server_time=time)
+        except Exception as e:
+            logger.warning("keepalive_failed", error=str(e))
+

@@ -57,6 +57,7 @@ class PollingConfig(BaseModel):
     """Polling intervals configuration."""
     price_seconds: int = 10
     orders_seconds: int = 15
+    keepalive_seconds: int = 300  # Keep IBKR connection alive (5 minutes default)
 
 
 class RiskConfig(BaseModel):

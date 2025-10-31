@@ -57,6 +57,7 @@ cooldowns:
 polling:
   price_seconds: 10
   orders_seconds: 15
+  keepalive_seconds: 300  # Ping IBKR every 5 minutes to keep connection alive
 
 risk:
   max_total_exposure_usd: 20000

@@ -249,6 +249,13 @@ All logs in JSON format (structlog):
 - `duplicate_stop_cancelled`
 - `exposure_limit_exceeded`
 
+### Connection Keep-Alive
+
+The bot automatically pings IBKR every 5 minutes to prevent connection timeout:
+- Works 24/7 (even when market is closed)
+- Configurable interval in `config.yaml` under `polling.keepalive_seconds`
+- See **`KEEPALIVE_INFO.md`** for details
+
 ### Monitoring Commands
 
 ```bash
@@ -396,11 +403,12 @@ ibkr:
 
 ### Automatic Safeguards
 
-1. **Connection Loss**: Bot stops placing orders until reconnected
-2. **Data Staleness**: Skips symbols with stale price data
-3. **Corporate Actions**: Detects quantity mismatches and adjusts stops
-4. **Rate Limiting**: Built-in throttling on API calls
-5. **Exponential Backoff**: On API errors
+1. **Connection Keep-Alive**: Pings IBKR every 5 minutes to prevent timeout
+2. **Connection Loss**: Bot stops placing orders until reconnected
+3. **Data Staleness**: Skips symbols with stale price data
+4. **Corporate Actions**: Detects quantity mismatches and adjusts stops
+5. **Rate Limiting**: Built-in throttling on API calls
+6. **Exponential Backoff**: On API errors
 
 ### Manual Controls
 
