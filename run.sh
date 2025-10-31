@@ -15,5 +15,5 @@ fi
 
 # Run the bot
 echo "🚀 Starting Crazy Trade Bot..."
-python main.py "$@"
+python3 main.py "$@"
 

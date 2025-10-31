@@ -101,10 +101,13 @@ allocation:
 
 ```bash
 # Start the bot
-python main.py
+./run.sh
 
 # Or specify custom config
-python main.py my_config.yaml
+./run.sh my_config.yaml
+
+# Or run directly
+python3 main.py
 ```
 
 ## 📋 Trading Logic
@@ -533,7 +536,7 @@ git pull
 pip install -r requirements.txt --upgrade
 
 # Restart bot
-python main.py
+./run.sh
 ```
 
 ## 📝 License

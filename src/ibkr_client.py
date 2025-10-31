@@ -1,5 +1,7 @@
 """IBKR client wrapper using ib_insync."""
 
+from __future__ import annotations
+
 from typing import Optional, Dict, Callable
 from decimal import Decimal, ROUND_DOWN
 import asyncio

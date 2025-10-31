@@ -1,6 +1,8 @@
 """Configuration management with Pydantic models."""
 
-from typing import Dict, Optional, Literal
+from __future__ import annotations
+
+from typing import Dict, Optional, Literal, Union
 from pathlib import Path
 import yaml
 from pydantic import BaseModel, Field, field_validator
@@ -106,7 +108,7 @@ class BotConfig(BaseModel):
         return [s.upper() for s in v]
 
     @classmethod
-    def from_yaml(cls, path: str | Path) -> "BotConfig":
+    def from_yaml(cls, path: Union[str, Path]) -> "BotConfig":
         """Load configuration from YAML file."""
         path = Path(path)
         if not path.exists():

@@ -175,8 +175,9 @@ Multiple layers:
 
 ### Manual Start
 ```bash
-python main.py                    # Use config.yaml
-python main.py custom_config.yaml # Use custom config
+./run.sh                          # Use config.yaml
+./run.sh custom_config.yaml       # Use custom config
+python3 main.py                   # Direct run
 ```
 
 ### Status Check

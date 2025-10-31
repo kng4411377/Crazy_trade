@@ -66,7 +66,7 @@ allocation:
 ./run.sh
 
 # Or manually:
-python main.py
+python3 main.py
 ```
 
 **What to expect:**

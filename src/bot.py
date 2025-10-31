@@ -339,6 +339,8 @@ class TradingBot:
 
 async def main(config_path: str = "config.yaml"):
     """Main entry point."""
+    import logging
+    
     # Setup structured logging
     structlog.configure(
         processors=[
@@ -355,7 +357,6 @@ async def main(config_path: str = "config.yaml"):
         cache_logger_on_first_use=True,
     )
     
-    import logging
     logging.basicConfig(level=logging.INFO)
     
     # Load configuration

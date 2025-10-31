@@ -1,5 +1,7 @@
 """Database models and session management."""
 
+from __future__ import annotations
+
 from datetime import datetime
 from typing import Optional
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, JSON, Boolean

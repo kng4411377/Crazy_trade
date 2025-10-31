@@ -90,7 +90,7 @@ curl http://192.168.1.100:8080/status
 ### Background Service
 ```bash
 # Using nohup
-nohup python api_server.py --port 8080 > api.log 2>&1 &
+nohup python3 api_server.py --port 8080 > api.log 2>&1 &
 
 # Using screen
 screen -S tradebot-api

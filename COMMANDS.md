@@ -50,7 +50,7 @@ grep "entry_order_placed" bot.log | jq .
 ./run_api.sh 9000
 
 # Or run directly
-python api_server.py --port 8080
+python3 api_server.py --port 8080
 
 # Access endpoints
 curl http://localhost:8080/              # API docs
@@ -290,7 +290,7 @@ nohup ./run.sh > output.log 2>&1 &
 ps aux | grep main.py
 
 # Run API server in background
-nohup python api_server.py --port 8080 > api.log 2>&1 &
+nohup python3 api_server.py --port 8080 > api.log 2>&1 &
 
 # Or use screen for API
 screen -S tradebot-api

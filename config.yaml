@@ -1,7 +1,7 @@
 # Trade Bot Configuration
 
 ibkr:
-  host: "127.0.0.1"
+  host: "localhost"
   port: 5000           # IB Gateway port
   client_id: 12
   account: null        # optional, for multi-account setups

@@ -14,7 +14,7 @@ Simple REST API for monitoring your trading bot remotely. No fancy UI, just clea
 ./run_api.sh 9000
 
 # With options
-python api_server.py --host 0.0.0.0 --port 8080
+python3 api_server.py --host 0.0.0.0 --port 8080
 ```
 
 The server runs on `0.0.0.0` by default, so it's accessible from other machines.

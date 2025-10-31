@@ -146,7 +146,7 @@ screen -ls
 nohup ./run.sh > bot_output.log 2>&1 &
 
 # Start API in background
-nohup python api_server.py --port 8080 > api.log 2>&1 &
+nohup python3 api_server.py --port 8080 > api.log 2>&1 &
 
 # Check if running
 ps aux | grep -E 'main.py|api_server.py'
