@@ -274,6 +274,36 @@ grep "fill_received" bot.log | jq -r .symbol | sort | uniq -c
 sqlite3 bot.db "SELECT symbol, cooldown_until_ts FROM state WHERE cooldown_until_ts > datetime('now')"
 ```
 
+### Remote Monitoring (API Server)
+
+For remote access, start the simple REST API:
+
+```bash
+# Start API server
+./run_api.sh
+
+# Or with custom port
+./run_api.sh 9000
+```
+
+Then access from anywhere:
+
+```bash
+# Check status
+curl http://your-server-ip:8080/status | jq .
+
+# View performance
+curl http://your-server-ip:8080/performance | jq .
+
+# Get recent fills
+curl http://your-server-ip:8080/fills
+
+# See all endpoints
+curl http://your-server-ip:8080/
+```
+
+See **`API_GUIDE.md`** for full API documentation.
+
 ## ⚙️ Configuration Reference
 
 ### Entry Strategy

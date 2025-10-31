@@ -35,3 +35,7 @@ pytest-mock>=3.12.0
 python-dateutil>=2.8.2
 pytz>=2023.3
 
+# API Server
+Flask>=3.0.0
+requests>=2.31.0
+

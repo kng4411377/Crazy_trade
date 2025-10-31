@@ -18,6 +18,8 @@ Ctrl+C
 
 ## 📊 Monitoring
 
+### Command-Line Tools
+
 ```bash
 # Check status
 python scripts/check_status.py
@@ -36,6 +38,34 @@ grep "TSLA" bot.log | jq .
 
 # Filter by event type
 grep "entry_order_placed" bot.log | jq .
+```
+
+### API Server (Remote Access)
+
+```bash
+# Start API server (default port 8080)
+./run_api.sh
+
+# Or with custom port
+./run_api.sh 9000
+
+# Or run directly
+python api_server.py --port 8080
+
+# Access endpoints
+curl http://localhost:8080/              # API docs
+curl http://localhost:8080/health        # Health check
+curl http://localhost:8080/status        # Bot status
+curl http://localhost:8080/performance   # Performance metrics
+curl http://localhost:8080/fills         # Recent fills
+curl http://localhost:8080/fills?limit=50  # Last 50 fills
+curl http://localhost:8080/orders        # Active orders
+curl http://localhost:8080/events        # Recent events
+curl http://localhost:8080/daily         # Daily P&L
+curl http://localhost:8080/daily?days=30 # Last 30 days
+
+# Remote access (from another machine)
+curl http://your-server-ip:8080/status
 ```
 
 ## 🗄️ Database Queries
@@ -258,6 +288,14 @@ nohup ./run.sh > output.log 2>&1 &
 
 # Check daemon
 ps aux | grep main.py
+
+# Run API server in background
+nohup python api_server.py --port 8080 > api.log 2>&1 &
+
+# Or use screen for API
+screen -S tradebot-api
+./run_api.sh
+# Press Ctrl+A then D to detach
 ```
 
 ## 🎯 Quick Status Check
