@@ -38,6 +38,7 @@ curl http://localhost:8080/status | jq .
 |----------|-------------|
 | `GET /` | API documentation |
 | `GET /health` | Health check |
+| `POST /v1/api/tickle` | Keep-alive endpoint |
 | `GET /status` | Bot status & symbol states |
 | `GET /performance` | Performance metrics & P&L |
 | `GET /fills` | Recent fills |
@@ -65,6 +66,12 @@ curl http://localhost:8080/performance | jq .
 
 # Recent fills
 curl http://localhost:8080/fills?limit=50
+
+# Keep-alive tickle
+curl -sk --http1.1 --noproxy 127.0.0.1,localhost \
+  -H "Content-Type: application/json" \
+  -X POST "http://localhost:8080/v1/api/tickle" \
+  -d '{}'
 ```
 
 ### From Python

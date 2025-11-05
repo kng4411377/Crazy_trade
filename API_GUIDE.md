@@ -60,6 +60,29 @@ curl http://localhost:8080/health
 
 ---
 
+### `POST /v1/api/tickle`
+Keep-alive endpoint for external monitoring systems (e.g., UptimeRobot, Pingdom)
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "timestamp": "2024-10-31T14:30:00.123456"
+}
+```
+
+**Example:**
+```bash
+curl -sk --http1.1 --noproxy 127.0.0.1,localhost \
+  -H "Content-Type: application/json" \
+  -X POST "http://127.0.0.1:8080/v1/api/tickle" \
+  -d '{}'
+```
+
+**Note:** The `-d '{}'` parameter is required to send an empty JSON body and avoid "411 Length Required" errors.
+
+---
+
 ### `GET /status`
 Bot status, symbol states, and activity summary
 

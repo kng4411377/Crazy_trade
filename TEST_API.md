@@ -52,6 +52,13 @@ curl http://localhost:8080/fills
 
 # Test 6: Events
 curl http://localhost:8080/events
+
+# Test 7: Keep-alive tickle
+curl -sk --http1.1 --noproxy 127.0.0.1,localhost \
+  -H "Content-Type: application/json" \
+  -X POST "http://localhost:8080/v1/api/tickle" \
+  -d '{}'
+# Expected: {"status":"ok",...}
 ```
 
 ## 4. Pretty Print (with jq)
@@ -110,7 +117,7 @@ lsof -i :8080
 
 ## Quick Validation
 
-Run this one-liner to test all endpoints:
+Run this one-liner to test all GET endpoints:
 
 ```bash
 for endpoint in health status performance fills orders events daily; do
@@ -118,6 +125,16 @@ for endpoint in health status performance fills orders events daily; do
   curl -s http://localhost:8080/$endpoint | head -c 100
   echo -e "\n---"
 done
+```
+
+Test the POST tickle endpoint:
+
+```bash
+echo "Testing /v1/api/tickle..."
+curl -sk --http1.1 --noproxy 127.0.0.1,localhost \
+  -H "Content-Type: application/json" \
+  -X POST "http://localhost:8080/v1/api/tickle" \
+  -d '{}'
 ```
 
 If all endpoints return JSON (even if empty), the API is working! ✅

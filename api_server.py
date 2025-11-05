@@ -40,6 +40,7 @@ def index():
         "version": "1.0",
         "endpoints": {
             "/health": "Health check",
+            "/v1/api/tickle": "Keep-alive endpoint (POST)",
             "/status": "Bot status and symbol states",
             "/performance": "Performance metrics and P&L",
             "/fills": "Recent fills (default 20)",
@@ -71,6 +72,15 @@ def health():
             "timestamp": datetime.utcnow().isoformat(),
             "error": str(e)
         }), 500
+
+
+@app.route('/v1/api/tickle', methods=['POST'])
+def tickle():
+    """Keep-alive endpoint for external monitoring systems."""
+    return jsonify({
+        "status": "ok",
+        "timestamp": datetime.utcnow().isoformat()
+    })
 
 
 @app.route('/status')
