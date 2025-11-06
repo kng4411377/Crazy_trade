@@ -1,0 +1,50 @@
+# Systemd service file for Crazy Trade Bot
+# 
+# Installation:
+#   1. Edit paths below to match your installation
+#   2. sudo cp crazy-trade-bot.service /etc/systemd/system/
+#   3. sudo systemctl daemon-reload
+#   4. sudo systemctl enable crazy-trade-bot
+#   5. sudo systemctl start crazy-trade-bot
+#
+# Usage:
+#   sudo systemctl start crazy-trade-bot    # Start
+#   sudo systemctl stop crazy-trade-bot     # Stop
+#   sudo systemctl restart crazy-trade-bot  # Restart
+#   sudo systemctl status crazy-trade-bot   # Check status
+#   journalctl -u crazy-trade-bot -f        # View logs
+
+[Unit]
+Description=Crazy Trade Bot - Alpaca Automated Trading
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=YOUR_USERNAME
+Group=YOUR_USERNAME
+WorkingDirectory=/home/YOUR_USERNAME/crazy_trade
+Environment="PATH=/home/YOUR_USERNAME/crazy_trade/venv/bin:/usr/local/bin:/usr/bin:/bin"
+
+# Main bot process
+ExecStart=/home/YOUR_USERNAME/crazy_trade/venv/bin/python3 /home/YOUR_USERNAME/crazy_trade/main.py
+
+# Restart on failure
+Restart=on-failure
+RestartSec=10
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=crazy-trade-bot
+
+# Security (optional but recommended)
+# NoNewPrivileges=true
+# PrivateTmp=true
+# ProtectSystem=strict
+# ProtectHome=read-only
+# ReadWritePaths=/home/YOUR_USERNAME/crazy_trade
+
+[Install]
+WantedBy=multi-user.target
+

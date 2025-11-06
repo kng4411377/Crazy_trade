@@ -1,0 +1,43 @@
+# Systemd service file for Crazy Trade Bot API Server
+# 
+# Installation:
+#   1. Edit paths below to match your installation
+#   2. sudo cp crazy-trade-api.service /etc/systemd/system/
+#   3. sudo systemctl daemon-reload
+#   4. sudo systemctl enable crazy-trade-api
+#   5. sudo systemctl start crazy-trade-api
+#
+# Usage:
+#   sudo systemctl start crazy-trade-api    # Start
+#   sudo systemctl stop crazy-trade-api     # Stop
+#   sudo systemctl restart crazy-trade-api  # Restart
+#   sudo systemctl status crazy-trade-api   # Check status
+#   journalctl -u crazy-trade-api -f        # View logs
+
+[Unit]
+Description=Crazy Trade Bot API Server
+After=network-online.target crazy-trade-bot.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=YOUR_USERNAME
+Group=YOUR_USERNAME
+WorkingDirectory=/home/YOUR_USERNAME/crazy_trade
+Environment="PATH=/home/YOUR_USERNAME/crazy_trade/venv/bin:/usr/local/bin:/usr/bin:/bin"
+
+# API server process
+ExecStart=/home/YOUR_USERNAME/crazy_trade/venv/bin/python3 /home/YOUR_USERNAME/crazy_trade/api_server.py
+
+# Restart on failure
+Restart=on-failure
+RestartSec=10
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=crazy-trade-api
+
+[Install]
+WantedBy=multi-user.target
+
