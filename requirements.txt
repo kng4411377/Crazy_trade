@@ -1,7 +1,7 @@
 # Trading Bot Dependencies
 
-# IBKR API
-ib-insync==0.9.86
+# Alpaca Trading API
+alpaca-py>=0.20.0
 
 # Data processing
 pandas>=2.1.0

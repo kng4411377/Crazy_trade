@@ -7,11 +7,11 @@ import signal
 import sys
 import structlog
 
-from ib_insync import Trade, Fill, util
+from alpaca.trading.enums import OrderType
 
 from src.config import BotConfig
 from src.database import DatabaseManager
-from src.ibkr_client import IBKRClient
+from src.alpaca_client import AlpacaClient, AlpacaOrder
 from src.market_hours import MarketHoursChecker
 from src.sizing import PositionSizer
 from src.state_machine import SymbolStateMachine
@@ -32,7 +32,7 @@ class TradingBot:
         self.db = DatabaseManager(config.persistence.db_url)
         self.db.create_tables()
         
-        self.ibkr = IBKRClient(config)
+        self.alpaca = AlpacaClient(config)
         self.market_hours = MarketHoursChecker(
             config.hours.calendar,
             config.hours.allow_pre_market,
@@ -44,15 +44,18 @@ class TradingBot:
         self.state_machines: Dict[str, SymbolStateMachine] = {}
         for symbol in config.watchlist:
             self.state_machines[symbol] = SymbolStateMachine(
-                symbol, config, self.ibkr, self.db, self.sizer
+                symbol, config, self.alpaca, self.db, self.sizer
             )
         
         # Performance tracker
-        self.performance = PerformanceTracker(self.db, self.ibkr)
+        self.performance = PerformanceTracker(self.db, self.alpaca)
         
         # Register event handlers
-        self.ibkr.register_fill_callback(self._on_fill)
-        self.ibkr.register_order_status_callback(self._on_order_status)
+        self.alpaca.register_fill_callback(self._on_fill)
+        self.alpaca.register_order_status_callback(self._on_order_status)
+        
+        # Track last event check time
+        self.last_event_check = datetime.min
         
         # Track last operation times
         self.last_price_check = datetime.min
@@ -76,8 +79,8 @@ class TradingBot:
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
         
-        # Connect to IBKR
-        await self.ibkr.connect()
+        # Connect to Alpaca
+        await self.alpaca.connect()
         
         self.running = True
         
@@ -106,7 +109,7 @@ class TradingBot:
         logger.info("stopping_trading_bot")
         self.running = False
         
-        await self.ibkr.disconnect()
+        await self.alpaca.disconnect()
         
         with self.db.get_session() as session:
             self.db.add_event(session, event_type="bot_stopped")
@@ -142,6 +145,9 @@ class TradingBot:
                 # Take daily performance snapshot
                 await self._take_daily_snapshot()
                 
+                # Check for order events (Alpaca REST polling)
+                await self._check_order_events()
+                
                 # Keep-alive ping to prevent connection timeout
                 await self._keepalive_tick()
                 
@@ -157,8 +163,8 @@ class TradingBot:
     async def _process_trading_logic(self):
         """Process trading logic for all symbols."""
         # Get current positions and account value
-        positions = self.ibkr.get_positions()
-        account_value = self.ibkr.get_account_value()
+        positions = self.alpaca.get_positions()
+        account_value = self.alpaca.get_account_value()
         
         # Calculate current exposures
         position_values = {
@@ -206,14 +212,24 @@ class TradingBot:
                         event_type="eod_cancellations_completed",
                     )
 
+    async def _check_order_events(self):
+        """Check for order updates and fills (Alpaca REST polling)."""
+        now = datetime.utcnow()
+        
+        # Check for events based on configured interval
+        interval = self.config.polling.event_check_seconds
+        if (now - self.last_event_check).total_seconds() >= interval:
+            await self.alpaca.check_for_events()
+            self.last_event_check = now
+
     async def _keepalive_tick(self):
-        """Send periodic keep-alive to IBKR to prevent timeout."""
+        """Send periodic keep-alive to Alpaca to prevent timeout."""
         now = datetime.utcnow()
         
         # Send keep-alive based on configured interval
         interval = self.config.polling.keepalive_seconds
         if (now - self.last_keepalive).total_seconds() >= interval:
-            await self.ibkr.keep_alive()
+            await self.alpaca.keep_alive()
             self.last_keepalive = now
 
     async def _take_daily_snapshot(self):
@@ -227,7 +243,7 @@ class TradingBot:
         try:
             # Get account summary
             account_summary = self.performance.get_account_summary()
-            positions = self.ibkr.get_positions()
+            positions = self.alpaca.get_positions()
             
             if not account_summary:
                 return
@@ -261,18 +277,22 @@ class TradingBot:
         except Exception as e:
             logger.error("failed_to_save_snapshot", error=str(e))
 
-    def _on_fill(self, trade: Trade, fill: Fill):
+    def _on_fill(self, order_wrapper: AlpacaOrder, fill):
         """Handle fill events."""
-        symbol = trade.contract.symbol
+        symbol = order_wrapper.contract.symbol
         exec_id = fill.execution.execId
+        
+        order = order_wrapper.order
+        side = order.side.value.upper()
+        order_id = order.id
         
         logger.info(
             "fill_received",
             symbol=symbol,
-            side=trade.order.action,
+            side=side,
             qty=fill.execution.shares,
             price=fill.execution.price,
-            order_id=trade.order.orderId,
+            order_id=order_id,
             exec_id=exec_id,
         )
         
@@ -282,10 +302,10 @@ class TradingBot:
                 session,
                 exec_id=exec_id,
                 symbol=symbol,
-                side=trade.order.action,
+                side=side,
                 qty=fill.execution.shares,
                 price=fill.execution.price,
-                order_id=trade.order.orderId,
+                order_id=order_id,
             )
             
             self.db.add_event(
@@ -294,24 +314,31 @@ class TradingBot:
                 symbol=symbol,
                 payload={
                     "exec_id": exec_id,
-                    "side": trade.order.action,
+                    "side": side,
                     "qty": fill.execution.shares,
                     "price": fill.execution.price,
-                    "order_id": trade.order.orderId,
+                    "order_id": order_id,
                 },
             )
         
         # If this is a SELL fill of a trailing stop, enter cooldown
-        if trade.order.action == "SELL" and "TRAIL" in trade.order.orderType:
+        if side == "SELL" and order.type == OrderType.TRAILING_STOP:
             logger.info("stopout_detected", symbol=symbol)
             if symbol in self.state_machines:
                 self.state_machines[symbol].on_stop_out()
+        
+        # If this is a BUY fill, place trailing stop
+        if side == "BUY" and symbol in self.state_machines:
+            asyncio.create_task(self.state_machines[symbol].place_trailing_stop_after_entry(
+                int(fill.execution.shares),
+                fill.execution.price
+            ))
 
-    def _on_order_status(self, trade: Trade):
+    def _on_order_status(self, order_wrapper: AlpacaOrder):
         """Handle order status updates."""
-        symbol = trade.contract.symbol
-        order_id = trade.order.orderId
-        status = trade.orderStatus.status
+        symbol = order_wrapper.contract.symbol
+        order_id = order_wrapper.order.id
+        status = order_wrapper.orderStatus.status
         
         logger.debug(
             "order_status_update",
@@ -325,10 +352,10 @@ class TradingBot:
             self.db.update_order_status(session, order_id, status)
             
             # Log significant status changes
-            if status in ["Filled", "Cancelled", "Inactive"]:
+            if status in ["filled", "canceled", "cancelled", "expired", "rejected"]:
                 self.db.add_event(
                     session,
-                    event_type=f"order_{status.lower()}",
+                    event_type=f"order_{status}",
                     symbol=symbol,
                     payload={
                         "order_id": order_id,

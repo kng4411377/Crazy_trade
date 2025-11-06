@@ -1,12 +1,16 @@
 # Trade Bot Configuration
+#
+# ⚠️  IMPORTANT: API keys are NOT stored here!
+# API keys are in secrets.yaml (which is in .gitignore)
+#
+# To set up:
+#   1. cp secrets.yaml.example secrets.yaml
+#   2. Edit secrets.yaml with your real API keys
+#   3. Never commit secrets.yaml to Git!
+#
+# See SETUP_SECRETS.md for detailed instructions
 
-ibkr:
-  host: "localhost"
-  port: 5000           # IB Gateway port
-  client_id: 12
-  account: null        # optional, for multi-account setups
-
-mode: "paper"          # "paper" | "live"
+mode: "paper"          # "paper" | "live" (determines paper vs live Alpaca endpoint)
 
 watchlist: 
   - "BBBY"
@@ -23,6 +27,7 @@ watchlist:
   - "KSS"
   - "DNUT"
   - "GPRO"
+  - "HTZ"
 
 allocation:
   # Dollar-based sizing to cap risk per symbol and overall
@@ -57,7 +62,8 @@ cooldowns:
 polling:
   price_seconds: 10
   orders_seconds: 15
-  keepalive_seconds: 300  # Ping IBKR every 5 minutes to keep connection alive
+  keepalive_seconds: 300     # Ping Alpaca every 5 minutes to keep connection alive
+  event_check_seconds: 5     # Check for order updates/fills (Alpaca REST polling)
 
 risk:
   max_total_exposure_usd: 20000

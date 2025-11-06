@@ -38,6 +38,7 @@ def index():
     return jsonify({
         "name": "Crazy Trade Bot API",
         "version": "1.0",
+        "description": "Read-only monitoring API for the trading bot",
         "endpoints": {
             "/health": "Health check",
             "/v1/api/tickle": "Keep-alive endpoint (POST)",
@@ -49,7 +50,9 @@ def index():
             "/events": "Recent events (default 20)",
             "/events?limit=N": "Recent N events",
             "/daily": "Daily P&L (default 10 days)",
-            "/daily?days=N": "Daily P&L for N days"
+            "/daily?days=N": "Daily P&L for N days",
+            "/reset": "Instructions to reset paper account (POST)",
+            "/admin/close_all": "Instructions to close all positions (POST)"
         }
     })
 
@@ -309,6 +312,44 @@ def daily():
             })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route('/reset', methods=['POST'])
+def reset_paper_account():
+    """
+    Reset paper trading account - close all positions and cancel all orders.
+    ONLY works in paper trading mode for safety.
+    """
+    try:
+        # This is a read-only API, so we can't actually reset
+        # But we can provide instructions
+        return jsonify({
+            "message": "This is a read-only monitoring API",
+            "instructions": {
+                "manual_reset": "To reset paper account, use the Alpaca dashboard",
+                "api_method": "Use the trading bot's AlpacaClient.reset_paper_account() method",
+                "command": "python3 -c \"import asyncio; from src.alpaca_client import AlpacaClient; from src.config import BotConfig; config = BotConfig.from_yaml('config.yaml'); client = AlpacaClient(config); asyncio.run(client.connect()); client.reset_paper_account()\""
+            },
+            "warning": "Resetting will close ALL positions and cancel ALL orders"
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/admin/close_all', methods=['POST'])
+def close_all_positions():
+    """
+    Emergency endpoint - close all positions.
+    Read-only API, returns instructions only.
+    """
+    return jsonify({
+        "message": "This is a read-only monitoring API",
+        "instructions": {
+            "manual": "Use Alpaca dashboard to close positions",
+            "programmatic": "Use AlpacaClient.close_all_positions() method"
+        },
+        "warning": "This would close ALL open positions at market price"
+    }), 200
 
 
 def main():

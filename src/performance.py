@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 import structlog
 
-from ib_insync import IB
 from sqlalchemy.orm import Session
 
 from src.database import DatabaseManager, FillRecord
@@ -16,46 +15,27 @@ logger = structlog.get_logger()
 class PerformanceTracker:
     """Track and analyze trading performance."""
 
-    def __init__(self, db_manager: DatabaseManager, ibkr_client=None):
+    def __init__(self, db_manager: DatabaseManager, alpaca_client=None):
         """Initialize performance tracker."""
         self.db = db_manager
-        self.ibkr = ibkr_client
+        self.alpaca = alpaca_client
         logger.info("performance_tracker_initialized")
 
-    # Account-level P&L from IBKR
+    # Account-level P&L from Alpaca
 
     def get_account_summary(self) -> Dict[str, float]:
         """
-        Get current account summary from IBKR.
+        Get current account summary from Alpaca.
         
         Returns:
             Dict with account metrics (NetLiquidation, TotalCashValue, etc.)
         """
-        if not self.ibkr or not self.ibkr.connected:
-            logger.warning("ibkr_not_connected")
+        if not self.alpaca or not self.alpaca.connected:
+            logger.warning("alpaca_not_connected")
             return {}
 
         try:
-            account_values = self.ibkr.ib.accountValues()
-            summary = {}
-            
-            key_metrics = [
-                'NetLiquidation',
-                'TotalCashValue',
-                'GrossPositionValue',
-                'UnrealizedPnL',
-                'RealizedPnL',
-                'AvailableFunds',
-                'BuyingPower',
-            ]
-            
-            for av in account_values:
-                if av.tag in key_metrics:
-                    try:
-                        summary[av.tag] = float(av.value)
-                    except (ValueError, TypeError):
-                        continue
-            
+            summary = self.alpaca.get_account_summary()
             logger.info("account_summary_fetched", summary=summary)
             return summary
             
@@ -65,28 +45,27 @@ class PerformanceTracker:
 
     def get_position_pnl(self) -> Dict[str, Dict[str, float]]:
         """
-        Get per-position P&L from IBKR.
+        Get per-position P&L from Alpaca.
         
         Returns:
             Dict of symbol -> {unrealized_pnl, realized_pnl, market_value, avg_cost}
         """
-        if not self.ibkr or not self.ibkr.connected:
-            logger.warning("ibkr_not_connected")
+        if not self.alpaca or not self.alpaca.connected:
+            logger.warning("alpaca_not_connected")
             return {}
 
         try:
-            positions = self.ibkr.ib.positions()
+            positions = self.alpaca.get_positions()
             pnl_by_symbol = {}
             
-            for position in positions:
-                symbol = position.contract.symbol
+            for symbol, position in positions.items():
                 pnl_by_symbol[symbol] = {
-                    'quantity': position.position,
-                    'avg_cost': position.avgCost,
-                    'market_price': getattr(position, 'marketPrice', 0),
-                    'market_value': position.position * getattr(position, 'marketPrice', 0),
-                    'unrealized_pnl': getattr(position, 'unrealizedPNL', 0),
-                    'realized_pnl': getattr(position, 'realizedPNL', 0),
+                    'quantity': position['quantity'],
+                    'avg_cost': position['avg_cost'],
+                    'market_price': position.get('current_price', 0),
+                    'market_value': position['market_value'],
+                    'unrealized_pnl': position.get('unrealized_pnl', 0),
+                    'realized_pnl': 0,  # Alpaca doesn't provide per-position realized P&L
                 }
             
             logger.info("position_pnl_fetched", num_positions=len(pnl_by_symbol))

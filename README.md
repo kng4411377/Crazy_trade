@@ -1,6 +1,6 @@
-# Crazy Trade Bot - IBKR Automated Trading System
+# Crazy Trade Bot - Alpaca Automated Trading System
 
-A sophisticated, production-ready automated trading bot for Interactive Brokers (IBKR) that implements momentum-based entry strategies with trailing stop risk management.
+A sophisticated, production-ready automated trading bot for Alpaca Trading that implements momentum-based entry strategies with trailing stop risk management.
 
 ## 🎯 Overview
 
@@ -15,7 +15,7 @@ This bot continuously monitors a watchlist of high-volatility stocks and automat
 
 ### Tech Stack
 - **Language**: Python 3.11+
-- **Broker API**: IBKR via `ib_insync` (IB Gateway on port 5000)
+- **Broker API**: Alpaca Trading API via `alpaca-py` SDK
 - **Data Processing**: pandas, numpy
 - **Configuration**: pydantic, PyYAML
 - **Market Hours**: pandas_market_calendars
@@ -35,7 +35,7 @@ crazy_trade/
 │   ├── bot.py              # Main bot orchestrator
 │   ├── config.py           # Configuration models
 │   ├── database.py         # Database models and operations
-│   ├── ibkr_client.py      # IBKR API wrapper
+│   ├── alpaca_client.py    # Alpaca API wrapper
 │   ├── market_hours.py     # RTH checking utilities
 │   ├── sizing.py           # Position sizing logic
 │   └── state_machine.py    # Per-symbol state machine
@@ -52,9 +52,10 @@ crazy_trade/
 
 ### Prerequisites
 
-1. **Interactive Brokers Account** (Paper or Live)
-2. **IB Gateway** installed and configured
-3. **Python 3.11+** installed
+1. **Alpaca Trading Account** (Free paper trading or live)
+   - Sign up at [alpaca.markets](https://alpaca.markets/)
+   - Generate API keys from dashboard
+2. **Python 3.11+** installed
 
 ### Installation
 
@@ -65,11 +66,10 @@ cd crazy_trade
 # Install dependencies
 pip install -r requirements.txt
 
-# Configure IB Gateway
-# - Start IB Gateway
-# - Set API port to 5000 (or adjust config.yaml)
-# - Enable API connections
-# - Disable read-only mode
+# Get your Alpaca API keys
+# 1. Go to https://app.alpaca.markets/
+# 2. Navigate to Paper Trading section
+# 3. Generate API Key and Secret Key
 ```
 
 ### Configuration
@@ -77,11 +77,9 @@ pip install -r requirements.txt
 Edit `config.yaml`:
 
 ```yaml
-ibkr:
-  host: "127.0.0.1"
-  port: 5000           # IB Gateway port
-  client_id: 12
-  account: null        # Optional for multi-account
+alpaca:
+  api_key: "YOUR_ALPACA_API_KEY"        # From Alpaca dashboard
+  secret_key: "YOUR_ALPACA_SECRET_KEY"  # Keep secure!
 
 mode: "paper"          # "paper" | "live"
 
@@ -96,6 +94,8 @@ allocation:
   per_symbol_usd: 1000
   min_cash_reserve_percent: 10
 ```
+
+⚠️ **Security**: Never commit your API keys to version control!
 
 ### Running the Bot
 

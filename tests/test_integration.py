@@ -21,10 +21,10 @@ class TestGapUpScenario:
         Expected: Entry fills, trailing stop is active.
         """
         # Setup mocks
-        mock_ibkr = Mock()
-        mock_ibkr.get_positions = Mock(return_value={})
-        mock_ibkr.get_open_orders = Mock(return_value=[])
-        mock_ibkr.get_last_price = AsyncMock(return_value=100.0)
+        mock_alpaca = Mock()
+        mock_alpaca.get_positions = Mock(return_value={})
+        mock_alpaca.get_open_orders = Mock(return_value=[])
+        mock_alpaca.get_last_price = AsyncMock(return_value=100.0)
         
         # Mock successful entry with trailing stop
         mock_parent = Mock()
@@ -37,12 +37,12 @@ class TestGapUpScenario:
         mock_child.order.orderType = "TRAIL"
         mock_child.order.trailingPercent = 10.0
         
-        mock_ibkr.place_entry_with_trailing_stop = AsyncMock(
+        mock_alpaca.place_entry_with_trailing_stop = AsyncMock(
             return_value=(mock_parent, mock_child)
         )
         
         sizer = PositionSizer(test_config)
-        sm = SymbolStateMachine("TSLA", test_config, mock_ibkr, test_db, sizer)
+        sm = SymbolStateMachine("TSLA", test_config, mock_alpaca, test_db, sizer)
         
         # Initial state: no position
         status = sm.get_status()
@@ -50,10 +50,10 @@ class TestGapUpScenario:
         
         # Process - should create entry
         await sm.process({}, 50000)
-        mock_ibkr.place_entry_with_trailing_stop.assert_called_once()
+        mock_alpaca.place_entry_with_trailing_stop.assert_called_once()
         
         # Simulate entry fill - position now exists
-        mock_ibkr.get_positions.return_value = {
+        mock_alpaca.get_positions.return_value = {
             "TSLA": {"quantity": 10, "avg_cost": 105.0, "market_value": 1050}
         }
         
@@ -63,7 +63,7 @@ class TestGapUpScenario:
         mock_stop.order.action = "SELL"
         mock_stop.order.orderType = "TRAIL"
         mock_stop.order.totalQuantity = 10
-        mock_ibkr.get_open_orders.return_value = [mock_stop]
+        mock_alpaca.get_open_orders.return_value = [mock_stop]
         
         # Process again - should verify stop is healthy
         await sm.process({}, 50000)
@@ -83,14 +83,14 @@ class TestTrailingStopScenario:
         Simulate: Position exists, trailing stop triggers.
         Expected: Cooldown period starts, no new entries for N minutes.
         """
-        mock_ibkr = Mock()
-        mock_ibkr.get_positions = Mock(return_value={})
-        mock_ibkr.get_open_orders = Mock(return_value=[])
-        mock_ibkr.get_last_price = AsyncMock(return_value=100.0)
-        mock_ibkr.place_entry_with_trailing_stop = AsyncMock(return_value=(None, None))
+        mock_alpaca = Mock()
+        mock_alpaca.get_positions = Mock(return_value={})
+        mock_alpaca.get_open_orders = Mock(return_value=[])
+        mock_alpaca.get_last_price = AsyncMock(return_value=100.0)
+        mock_alpaca.place_entry_with_trailing_stop = AsyncMock(return_value=(None, None))
         
         sizer = PositionSizer(test_config)
-        sm = SymbolStateMachine("TSLA", test_config, mock_ibkr, test_db, sizer)
+        sm = SymbolStateMachine("TSLA", test_config, mock_alpaca, test_db, sizer)
         
         # Trigger stop-out
         sm.on_stop_out()
@@ -101,7 +101,7 @@ class TestTrailingStopScenario:
         
         # Try to process - should not place order
         await sm.process({}, 50000)
-        mock_ibkr.place_entry_with_trailing_stop.assert_not_called()
+        mock_alpaca.place_entry_with_trailing_stop.assert_not_called()
         
         # Verify cooldown in database
         with test_db.get_session() as session:
@@ -120,10 +120,10 @@ class TestCooldownScenario:
         Simulate: After stop-out, cooldown prevents entry, then expires.
         Expected: No entry during cooldown, entry allowed after expiration.
         """
-        mock_ibkr = Mock()
-        mock_ibkr.get_positions = Mock(return_value={})
-        mock_ibkr.get_open_orders = Mock(return_value=[])
-        mock_ibkr.get_last_price = AsyncMock(return_value=100.0)
+        mock_alpaca = Mock()
+        mock_alpaca.get_positions = Mock(return_value={})
+        mock_alpaca.get_open_orders = Mock(return_value=[])
+        mock_alpaca.get_last_price = AsyncMock(return_value=100.0)
         
         mock_parent = Mock()
         mock_parent.order.orderId = 1001
@@ -135,12 +135,12 @@ class TestCooldownScenario:
         mock_child.order.orderType = "TRAIL"
         mock_child.order.trailingPercent = 10.0
         
-        mock_ibkr.place_entry_with_trailing_stop = AsyncMock(
+        mock_alpaca.place_entry_with_trailing_stop = AsyncMock(
             return_value=(mock_parent, mock_child)
         )
         
         sizer = PositionSizer(test_config)
-        sm = SymbolStateMachine("TSLA", test_config, mock_ibkr, test_db, sizer)
+        sm = SymbolStateMachine("TSLA", test_config, mock_alpaca, test_db, sizer)
         
         # Set cooldown (10 minutes remaining)
         cooldown_until = datetime.utcnow() + timedelta(minutes=10)
@@ -149,7 +149,7 @@ class TestCooldownScenario:
         
         # Try to process - should not place order
         await sm.process({}, 50000)
-        mock_ibkr.place_entry_with_trailing_stop.assert_not_called()
+        mock_alpaca.place_entry_with_trailing_stop.assert_not_called()
         
         # Expire cooldown
         with test_db.get_session() as session:
@@ -158,7 +158,7 @@ class TestCooldownScenario:
         
         # Try again - should place order now
         await sm.process({}, 50000)
-        mock_ibkr.place_entry_with_trailing_stop.assert_called_once()
+        mock_alpaca.place_entry_with_trailing_stop.assert_called_once()
 
 
 @pytest.mark.integration
@@ -171,12 +171,12 @@ class TestDuplicateStopScenario:
         Simulate: Position has multiple trailing stops.
         Expected: Keeps one, cancels duplicates.
         """
-        mock_ibkr = Mock()
-        mock_ibkr.get_positions = Mock(return_value={
+        mock_alpaca = Mock()
+        mock_alpaca.get_positions = Mock(return_value={
             "TSLA": {"quantity": 10, "avg_cost": 250.0, "market_value": 2500}
         })
-        mock_ibkr.get_last_price = AsyncMock(return_value=100.0)
-        mock_ibkr.cancel_order = AsyncMock()
+        mock_alpaca.get_last_price = AsyncMock(return_value=100.0)
+        mock_alpaca.cancel_order = AsyncMock()
         
         # Create duplicate stops
         mock_stop1 = Mock()
@@ -200,18 +200,18 @@ class TestDuplicateStopScenario:
         mock_stop3.order.totalQuantity = 10
         mock_stop3.order.orderId = 2003
         
-        mock_ibkr.get_open_orders = Mock(return_value=[mock_stop1, mock_stop2, mock_stop3])
+        mock_alpaca.get_open_orders = Mock(return_value=[mock_stop1, mock_stop2, mock_stop3])
         
         sizer = PositionSizer(test_config)
-        sm = SymbolStateMachine("TSLA", test_config, mock_ibkr, test_db, sizer)
+        sm = SymbolStateMachine("TSLA", test_config, mock_alpaca, test_db, sizer)
         
         # Process - should cancel duplicates
         await sm.process({}, 50000)
         
         # Should have cancelled 2 orders (keeping the first one)
-        assert mock_ibkr.cancel_order.call_count == 2
-        mock_ibkr.cancel_order.assert_any_call(mock_stop2)
-        mock_ibkr.cancel_order.assert_any_call(mock_stop3)
+        assert mock_alpaca.cancel_order.call_count == 2
+        mock_alpaca.cancel_order.assert_any_call(mock_stop2)
+        mock_alpaca.cancel_order.assert_any_call(mock_stop3)
 
 
 @pytest.mark.integration
@@ -226,7 +226,7 @@ class TestRTHGatingScenario:
         assert test_config.hours.allow_pre_market is False
         assert test_config.hours.allow_after_hours is False
         
-        # The IBKR client should set outsideRth=False on all orders
+        # The Alpaca client should respect market hours on all orders
         # This is verified in the order creation code
 
 
@@ -240,8 +240,8 @@ class TestEODCancellation:
         Simulate: Unfilled entry orders at end of day.
         Expected: Orders are cancelled before market close.
         """
-        mock_ibkr = Mock()
-        mock_ibkr.cancel_order = AsyncMock()
+        mock_alpaca = Mock()
+        mock_alpaca.cancel_order = AsyncMock()
         
         # Mock pending entry order
         mock_entry = Mock()
@@ -250,16 +250,16 @@ class TestEODCancellation:
         mock_entry.orderStatus.status = "Submitted"
         mock_entry.order.orderId = 1001
         
-        mock_ibkr.get_open_orders = Mock(return_value=[mock_entry])
+        mock_alpaca.get_open_orders = Mock(return_value=[mock_entry])
         
         sizer = PositionSizer(test_config)
-        sm = SymbolStateMachine("TSLA", test_config, mock_ibkr, test_db, sizer)
+        sm = SymbolStateMachine("TSLA", test_config, mock_alpaca, test_db, sizer)
         
         # Cancel unfilled entries
         await sm.cancel_unfilled_entries()
         
         # Verify cancellation
-        mock_ibkr.cancel_order.assert_called_once_with(mock_entry)
+        mock_alpaca.cancel_order.assert_called_once_with(mock_entry)
         
         # Verify event logged
         with test_db.get_session() as session:
@@ -280,11 +280,11 @@ class TestPositionSizingIntegration:
         Simulate: Portfolio near max exposure.
         Expected: New positions rejected or sized down.
         """
-        mock_ibkr = Mock()
-        mock_ibkr.get_positions = Mock(return_value={})
-        mock_ibkr.get_open_orders = Mock(return_value=[])
-        mock_ibkr.get_last_price = AsyncMock(return_value=100.0)
-        mock_ibkr.place_entry_with_trailing_stop = AsyncMock(return_value=(None, None))
+        mock_alpaca = Mock()
+        mock_alpaca.get_positions = Mock(return_value={})
+        mock_alpaca.get_open_orders = Mock(return_value=[])
+        mock_alpaca.get_last_price = AsyncMock(return_value=100.0)
+        mock_alpaca.place_entry_with_trailing_stop = AsyncMock(return_value=(None, None))
         
         sizer = PositionSizer(test_config)
         

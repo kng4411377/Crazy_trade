@@ -5,11 +5,9 @@ from typing import Optional, Dict
 from enum import Enum
 import structlog
 
-from ib_insync import Trade
-
 from src.config import BotConfig
 from src.database import DatabaseManager, SymbolState
-from src.ibkr_client import IBKRClient
+from src.alpaca_client import AlpacaClient, AlpacaOrder
 from src.sizing import PositionSizer
 
 logger = structlog.get_logger()
@@ -31,14 +29,14 @@ class SymbolStateMachine:
         self,
         symbol: str,
         config: BotConfig,
-        ibkr_client: IBKRClient,
+        alpaca_client: AlpacaClient,
         db_manager: DatabaseManager,
         sizer: PositionSizer,
     ):
         """Initialize state machine for a symbol."""
         self.symbol = symbol.upper()
         self.config = config
-        self.ibkr = ibkr_client
+        self.alpaca = alpaca_client
         self.db = db_manager
         self.sizer = sizer
         
@@ -59,17 +57,17 @@ class SymbolStateMachine:
                     return SymbolStatus.COOLDOWN
 
         # Check position
-        positions = self.ibkr.get_positions()
+        positions = self.alpaca.get_positions()
         if self.symbol in positions and positions[self.symbol]["quantity"] > 0:
             return SymbolStatus.POSITION_OPEN
 
         # Check pending entry orders
-        open_orders = self.ibkr.get_open_orders()
-        for trade in open_orders:
+        open_orders = self.alpaca.get_open_orders()
+        for order_wrapper in open_orders:
             if (
-                trade.contract.symbol == self.symbol
-                and trade.order.action == "BUY"
-                and trade.orderStatus.status in ["Submitted", "PreSubmitted"]
+                order_wrapper.contract.symbol == self.symbol
+                and order_wrapper.order.side.value.upper() == "BUY"
+                and order_wrapper.orderStatus.status in ["accepted", "new", "pending_new", "partially_filled"]
             ):
                 return SymbolStatus.ENTRY_PENDING
 
@@ -104,7 +102,7 @@ class SymbolStateMachine:
             state = self.db.get_symbol_state(session, self.symbol)
             
             # Get last price
-            last_price = await self.ibkr.get_last_price(self.symbol)
+            last_price = await self.alpaca.get_last_price(self.symbol)
             if not last_price:
                 logger.warning("cannot_fetch_price", symbol=self.symbol)
                 return
@@ -118,47 +116,34 @@ class SymbolStateMachine:
                 logger.info("skipping_entry_zero_qty", symbol=self.symbol)
                 return
 
-            # Place entry with trailing stop
-            parent_trade, child_trade = await self.ibkr.place_entry_with_trailing_stop(
+            # Place entry order (trailing stop will be placed after fill)
+            parent_order, _ = await self.alpaca.place_entry_with_trailing_stop(
                 self.symbol, qty, last_price
             )
             
-            if parent_trade and child_trade:
+            if parent_order:
                 # Update state
                 self.db.upsert_symbol_state(
                     session,
                     self.symbol,
-                    last_parent_id=parent_trade.order.orderId,
-                    last_trail_id=child_trade.order.orderId,
+                    last_parent_id=parent_order.order.id,
+                    last_trail_id=None,  # Will be set after entry fills
                 )
                 
-                # Record orders in DB
+                # Record order in DB
+                order = parent_order.order
                 self.db.add_order(
                     session,
-                    order_id=parent_trade.order.orderId,
+                    order_id=order.id,
                     symbol=self.symbol,
                     side="BUY",
-                    order_type=parent_trade.order.orderType,
-                    status="Submitted",
+                    order_type=order.type.value,
+                    status=order.status.value,
                     qty=qty,
-                    stop_price=parent_trade.order.auxPrice,
-                    limit_price=getattr(parent_trade.order, "lmtPrice", None),
+                    stop_price=float(order.stop_price) if order.stop_price else None,
+                    limit_price=float(order.limit_price) if order.limit_price else None,
                     trailing_pct=None,
                     parent_id=None,
-                )
-                
-                self.db.add_order(
-                    session,
-                    order_id=child_trade.order.orderId,
-                    symbol=self.symbol,
-                    side="SELL",
-                    order_type=child_trade.order.orderType,
-                    status="Submitted",
-                    qty=qty,
-                    stop_price=None,
-                    limit_price=None,
-                    trailing_pct=child_trade.order.trailingPercent,
-                    parent_id=parent_trade.order.orderId,
                 )
                 
                 self.db.add_event(
@@ -166,8 +151,7 @@ class SymbolStateMachine:
                     event_type="entry_order_placed",
                     symbol=self.symbol,
                     payload={
-                        "parent_id": parent_trade.order.orderId,
-                        "child_id": child_trade.order.orderId,
+                        "order_id": order.id,
                         "qty": qty,
                         "last_price": last_price,
                     },
@@ -181,7 +165,7 @@ class SymbolStateMachine:
 
     async def _handle_position_open(self):
         """Handle POSITION_OPEN state - ensure trailing stop exists and is healthy."""
-        positions = self.ibkr.get_positions()
+        positions = self.alpaca.get_positions()
         position = positions.get(self.symbol)
         
         if not position:
@@ -191,52 +175,52 @@ class SymbolStateMachine:
         position_qty = int(position["quantity"])
         
         # Check for existing trailing stop
-        open_orders = self.ibkr.get_open_orders()
+        open_orders = self.alpaca.get_open_orders()
         trailing_stops = [
-            trade
-            for trade in open_orders
-            if trade.contract.symbol == self.symbol
-            and trade.order.action == "SELL"
-            and "TRAIL" in trade.order.orderType
+            order_wrapper
+            for order_wrapper in open_orders
+            if order_wrapper.contract.symbol == self.symbol
+            and order_wrapper.order.side.value.upper() == "SELL"
+            and order_wrapper.order.type.value == "trailing_stop"
         ]
         
         if not trailing_stops:
             # Missing trailing stop - create one
             logger.warning("missing_trailing_stop", symbol=self.symbol)
-            last_price = await self.ibkr.get_last_price(self.symbol)
+            last_price = await self.alpaca.get_last_price(self.symbol)
             if last_price:
-                trade = await self.ibkr.place_trailing_stop(
+                order_wrapper = await self.alpaca.place_trailing_stop(
                     self.symbol, position_qty, last_price
                 )
-                if trade:
+                if order_wrapper:
                     with self.db.get_session() as session:
                         self.db.upsert_symbol_state(
                             session,
                             self.symbol,
-                            last_trail_id=trade.order.orderId,
+                            last_trail_id=order_wrapper.order.id,
                         )
                         self.db.add_event(
                             session,
                             event_type="trailing_stop_recreated",
                             symbol=self.symbol,
-                            payload={"order_id": trade.order.orderId, "qty": position_qty},
+                            payload={"order_id": order_wrapper.order.id, "qty": position_qty},
                         )
         elif len(trailing_stops) > 1:
             # Multiple stops - cancel duplicates (keep the first one)
             logger.warning("duplicate_trailing_stops", symbol=self.symbol, count=len(trailing_stops))
-            for trade in trailing_stops[1:]:
-                await self.ibkr.cancel_order(trade)
+            for order_wrapper in trailing_stops[1:]:
+                await self.alpaca.cancel_order(order_wrapper)
                 with self.db.get_session() as session:
                     self.db.add_event(
                         session,
                         event_type="duplicate_stop_cancelled",
                         symbol=self.symbol,
-                        payload={"order_id": trade.order.orderId},
+                        payload={"order_id": order_wrapper.order.id},
                     )
         else:
             # Verify quantity matches
-            stop_trade = trailing_stops[0]
-            stop_qty = int(stop_trade.order.totalQuantity)
+            stop_wrapper = trailing_stops[0]
+            stop_qty = int(float(stop_wrapper.order.qty))
             
             if stop_qty != position_qty:
                 logger.warning(
@@ -246,18 +230,18 @@ class SymbolStateMachine:
                     stop_qty=stop_qty,
                 )
                 # Cancel and recreate
-                await self.ibkr.cancel_order(stop_trade)
-                last_price = await self.ibkr.get_last_price(self.symbol)
+                await self.alpaca.cancel_order(stop_wrapper)
+                last_price = await self.alpaca.get_last_price(self.symbol)
                 if last_price:
-                    trade = await self.ibkr.place_trailing_stop(
+                    order_wrapper = await self.alpaca.place_trailing_stop(
                         self.symbol, position_qty, last_price
                     )
-                    if trade:
+                    if order_wrapper:
                         with self.db.get_session() as session:
                             self.db.upsert_symbol_state(
                                 session,
                                 self.symbol,
-                                last_trail_id=trade.order.orderId,
+                                last_trail_id=order_wrapper.order.id,
                             )
                             self.db.add_event(
                                 session,
@@ -266,7 +250,7 @@ class SymbolStateMachine:
                                 payload={
                                     "old_qty": stop_qty,
                                     "new_qty": position_qty,
-                                    "order_id": trade.order.orderId,
+                                    "order_id": order_wrapper.order.id,
                                 },
                             )
 
@@ -311,20 +295,64 @@ class SymbolStateMachine:
 
     async def cancel_unfilled_entries(self):
         """Cancel unfilled entry orders (e.g., at end of day)."""
-        open_orders = self.ibkr.get_open_orders()
-        for trade in open_orders:
+        open_orders = self.alpaca.get_open_orders()
+        for order_wrapper in open_orders:
             if (
-                trade.contract.symbol == self.symbol
-                and trade.order.action == "BUY"
-                and trade.orderStatus.status in ["Submitted", "PreSubmitted"]
+                order_wrapper.contract.symbol == self.symbol
+                and order_wrapper.order.side.value.upper() == "BUY"
+                and order_wrapper.orderStatus.status in ["accepted", "new", "pending_new"]
             ):
-                await self.ibkr.cancel_order(trade)
+                await self.alpaca.cancel_order(order_wrapper)
                 with self.db.get_session() as session:
                     self.db.add_event(
                         session,
                         event_type="entry_cancelled_eod",
                         symbol=self.symbol,
-                        payload={"order_id": trade.order.orderId},
+                        payload={"order_id": order_wrapper.order.id},
                     )
-                logger.info("entry_cancelled_eod", symbol=self.symbol, order_id=trade.order.orderId)
+                logger.info("entry_cancelled_eod", symbol=self.symbol, order_id=order_wrapper.order.id)
+
+    async def place_trailing_stop_after_entry(self, qty: int, entry_price: float):
+        """
+        Place trailing stop after entry order fills.
+        Called by bot's fill callback for BUY fills.
+        """
+        logger.info("placing_trailing_stop_after_entry", symbol=self.symbol, qty=qty)
+        
+        order_wrapper = await self.alpaca.place_trailing_stop(self.symbol, qty, entry_price)
+        
+        if order_wrapper:
+            with self.db.get_session() as session:
+                # Update state
+                self.db.upsert_symbol_state(
+                    session,
+                    self.symbol,
+                    last_trail_id=order_wrapper.order.id,
+                )
+                
+                # Record order
+                order = order_wrapper.order
+                self.db.add_order(
+                    session,
+                    order_id=order.id,
+                    symbol=self.symbol,
+                    side="SELL",
+                    order_type=order.type.value,
+                    status=order.status.value,
+                    qty=qty,
+                    stop_price=None,
+                    limit_price=None,
+                    trailing_pct=float(order.trail_percent) if hasattr(order, 'trail_percent') else self.config.stops.trailing_stop_pct,
+                    parent_id=None,
+                )
+                
+                self.db.add_event(
+                    session,
+                    event_type="trailing_stop_placed_after_entry",
+                    symbol=self.symbol,
+                    payload={
+                        "order_id": order.id,
+                        "qty": qty,
+                    },
+                )
 

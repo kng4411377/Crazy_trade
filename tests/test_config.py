@@ -5,13 +5,13 @@ from pathlib import Path
 import tempfile
 import yaml
 
-from src.config import BotConfig, IBKRConfig, AllocationConfig
+from src.config import BotConfig, AlpacaConfig, AllocationConfig
 
 
 def test_config_from_dict():
     """Test creating config from dictionary."""
     config_dict = {
-        "ibkr": {"host": "127.0.0.1", "port": 5000, "client_id": 12, "account": None},
+        "alpaca": {"api_key": "test_key", "secret_key": "test_secret"},
         "mode": "paper",
         "watchlist": ["TSLA", "NVDA"],
         "allocation": {
@@ -27,13 +27,13 @@ def test_config_from_dict():
     
     assert config.mode == "paper"
     assert config.watchlist == ["TSLA", "NVDA"]
-    assert config.ibkr.port == 5000
+    assert config.alpaca.api_key == "test_key"
 
 
 def test_config_from_yaml():
     """Test loading config from YAML file."""
     config_data = {
-        "ibkr": {"host": "127.0.0.1", "port": 5000, "client_id": 12},
+        "alpaca": {"api_key": "test_key", "secret_key": "test_secret"},
         "mode": "paper",
         "watchlist": ["TSLA", "NVDA", "AAPL"],
     }
@@ -54,7 +54,7 @@ def test_config_from_yaml():
 def test_watchlist_normalization():
     """Test that watchlist symbols are normalized to uppercase."""
     config_dict = {
-        "ibkr": {"host": "127.0.0.1", "port": 5000, "client_id": 12},
+        "alpaca": {"api_key": "test_key", "secret_key": "test_secret"},
         "mode": "paper",
         "watchlist": ["tsla", "nvda", "Aapl"],
     }
@@ -67,7 +67,7 @@ def test_watchlist_normalization():
 def test_empty_watchlist_raises_error():
     """Test that empty watchlist raises validation error."""
     config_dict = {
-        "ibkr": {"host": "127.0.0.1", "port": 5000, "client_id": 12},
+        "alpaca": {"api_key": "test_key", "secret_key": "test_secret"},
         "mode": "paper",
         "watchlist": [],
     }
@@ -79,7 +79,7 @@ def test_empty_watchlist_raises_error():
 def test_get_symbol_allocation():
     """Test getting symbol-specific allocation."""
     config_dict = {
-        "ibkr": {"host": "127.0.0.1", "port": 5000, "client_id": 12},
+        "alpaca": {"api_key": "test_key", "secret_key": "test_secret"},
         "mode": "paper",
         "watchlist": ["TSLA", "NVDA"],
         "allocation": {

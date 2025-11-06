@@ -10,7 +10,7 @@ from src.sizing import PositionSizer
 def config():
     """Create test configuration."""
     return BotConfig(
-        ibkr={"host": "127.0.0.1", "port": 5000, "client_id": 12},
+        alpaca={"api_key": "test_key", "secret_key": "test_secret"},
         mode="paper",
         watchlist=["TSLA", "NVDA"],
         allocation={

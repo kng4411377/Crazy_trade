@@ -9,7 +9,7 @@ from src.database import DatabaseManager
 def test_config():
     """Create a test configuration."""
     return BotConfig(
-        ibkr={"host": "127.0.0.1", "port": 5000, "client_id": 12},
+        alpaca={"api_key": "test_key", "secret_key": "test_secret"},
         mode="paper",
         watchlist=["TSLA", "NVDA", "AAPL"],
         allocation={

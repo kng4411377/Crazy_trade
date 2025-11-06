@@ -8,12 +8,11 @@ import yaml
 from pydantic import BaseModel, Field, field_validator
 
 
-class IBKRConfig(BaseModel):
-    """IBKR connection settings."""
-    host: str = "127.0.0.1"
-    port: int = 5000
-    client_id: int = 12
-    account: Optional[str] = None
+class AlpacaConfig(BaseModel):
+    """Alpaca API connection settings."""
+    api_key: str
+    secret_key: str
+    # No other settings needed - paper/live is determined by config.mode
 
 
 class AllocationConfig(BaseModel):
@@ -59,7 +58,8 @@ class PollingConfig(BaseModel):
     """Polling intervals configuration."""
     price_seconds: int = 10
     orders_seconds: int = 15
-    keepalive_seconds: int = 300  # Keep IBKR connection alive (5 minutes default)
+    keepalive_seconds: int = 300  # Keep connection alive (5 minutes default)
+    event_check_seconds: int = 5  # Check for order updates/fills (Alpaca REST polling)
 
 
 class RiskConfig(BaseModel):
@@ -85,7 +85,7 @@ class AlertsConfig(BaseModel):
 
 class BotConfig(BaseModel):
     """Main bot configuration."""
-    ibkr: IBKRConfig
+    alpaca: AlpacaConfig
     mode: Literal["paper", "live"] = "paper"
     watchlist: list[str] = Field(default_factory=list)
     allocation: AllocationConfig = Field(default_factory=AllocationConfig)
@@ -109,13 +109,45 @@ class BotConfig(BaseModel):
 
     @classmethod
     def from_yaml(cls, path: Union[str, Path]) -> "BotConfig":
-        """Load configuration from YAML file."""
+        """
+        Load configuration from YAML file.
+        
+        This method loads both config.yaml and secrets.yaml:
+        - config.yaml: Main configuration (safe to commit)
+        - secrets.yaml: API keys and secrets (in .gitignore)
+        """
         path = Path(path)
         if not path.exists():
             raise FileNotFoundError(f"Config file not found: {path}")
         
+        # Load main config
         with open(path, "r") as f:
             data = yaml.safe_load(f)
+        
+        # Load secrets from secrets.yaml
+        secrets_path = path.parent / "secrets.yaml"
+        if secrets_path.exists():
+            with open(secrets_path, "r") as f:
+                secrets = yaml.safe_load(f)
+            
+            # Merge secrets into config data
+            if "alpaca" in secrets:
+                data["alpaca"] = secrets["alpaca"]
+        else:
+            # If no secrets.yaml, check for .env or environment variables
+            import os
+            if "ALPACA_API_KEY" in os.environ and "ALPACA_SECRET_KEY" in os.environ:
+                data["alpaca"] = {
+                    "api_key": os.environ["ALPACA_API_KEY"],
+                    "secret_key": os.environ["ALPACA_SECRET_KEY"]
+                }
+            else:
+                raise FileNotFoundError(
+                    f"secrets.yaml not found at {secrets_path}\n"
+                    "Please create it from secrets.yaml.example:\n"
+                    "  cp secrets.yaml.example secrets.yaml\n"
+                    "  # Then edit secrets.yaml with your API keys"
+                )
         
         return cls(**data)
 

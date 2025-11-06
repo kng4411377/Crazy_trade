@@ -13,7 +13,7 @@ from src.state_machine import SymbolStateMachine, SymbolStatus
 def config():
     """Create test configuration."""
     return BotConfig(
-        ibkr={"host": "127.0.0.1", "port": 5000, "client_id": 12},
+        alpaca={"api_key": "test_key", "secret_key": "test_secret"},
         mode="paper",
         watchlist=["TSLA"],
         cooldowns={"after_stopout_minutes": 20},
@@ -29,8 +29,8 @@ def db_manager():
 
 
 @pytest.fixture
-def mock_ibkr_client():
-    """Create mock IBKR client."""
+def mock_alpaca_client():
+    """Create mock Alpaca client."""
     client = Mock()
     client.get_positions = Mock(return_value={})
     client.get_open_orders = Mock(return_value=[])
@@ -50,12 +50,12 @@ def mock_sizer():
 
 
 @pytest.fixture
-def state_machine(config, mock_ibkr_client, db_manager, mock_sizer):
+def state_machine(config, mock_alpaca_client, db_manager, mock_sizer):
     """Create state machine for testing."""
     return SymbolStateMachine(
         "TSLA",
         config,
-        mock_ibkr_client,
+        mock_alpaca_client,
         db_manager,
         mock_sizer,
     )
@@ -67,18 +67,18 @@ def test_state_machine_initialization(state_machine):
     assert state_machine.config is not None
 
 
-def test_get_status_no_position(state_machine, mock_ibkr_client):
+def test_get_status_no_position(state_machine, mock_alpaca_client):
     """Test status detection when no position exists."""
-    mock_ibkr_client.get_positions.return_value = {}
-    mock_ibkr_client.get_open_orders.return_value = []
+    mock_alpaca_client.get_positions.return_value = {}
+    mock_alpaca_client.get_open_orders.return_value = []
     
     status = state_machine.get_status()
     assert status == SymbolStatus.NO_POSITION
 
 
-def test_get_status_position_open(state_machine, mock_ibkr_client):
+def test_get_status_position_open(state_machine, mock_alpaca_client):
     """Test status detection when position is open."""
-    mock_ibkr_client.get_positions.return_value = {
+    mock_alpaca_client.get_positions.return_value = {
         "TSLA": {"quantity": 10, "avg_cost": 250.0, "market_value": 2500}
     }
     
@@ -86,15 +86,15 @@ def test_get_status_position_open(state_machine, mock_ibkr_client):
     assert status == SymbolStatus.POSITION_OPEN
 
 
-def test_get_status_entry_pending(state_machine, mock_ibkr_client):
+def test_get_status_entry_pending(state_machine, mock_alpaca_client):
     """Test status detection when entry order is pending."""
     mock_order = Mock()
     mock_order.contract.symbol = "TSLA"
     mock_order.order.action = "BUY"
     mock_order.orderStatus.status = "Submitted"
     
-    mock_ibkr_client.get_positions.return_value = {}
-    mock_ibkr_client.get_open_orders.return_value = [mock_order]
+    mock_alpaca_client.get_positions.return_value = {}
+    mock_alpaca_client.get_open_orders.return_value = [mock_order]
     
     status = state_machine.get_status()
     assert status == SymbolStatus.ENTRY_PENDING
@@ -115,7 +115,7 @@ def test_get_status_cooldown(state_machine, db_manager):
     assert status == SymbolStatus.COOLDOWN
 
 
-def test_get_status_cooldown_expired(state_machine, db_manager, mock_ibkr_client):
+def test_get_status_cooldown_expired(state_machine, db_manager, mock_alpaca_client):
     """Test status when cooldown has expired."""
     # Set cooldown to past time
     past_time = datetime.utcnow() - timedelta(minutes=10)
@@ -126,15 +126,15 @@ def test_get_status_cooldown_expired(state_machine, db_manager, mock_ibkr_client
             cooldown_until_ts=past_time,
         )
     
-    mock_ibkr_client.get_positions.return_value = {}
-    mock_ibkr_client.get_open_orders.return_value = []
+    mock_alpaca_client.get_positions.return_value = {}
+    mock_alpaca_client.get_open_orders.return_value = []
     
     status = state_machine.get_status()
     assert status == SymbolStatus.NO_POSITION  # Cooldown expired
 
 
 @pytest.mark.asyncio
-async def test_handle_no_position_places_order(state_machine, mock_ibkr_client):
+async def test_handle_no_position_places_order(state_machine, mock_alpaca_client):
     """Test that NO_POSITION state places entry order."""
     # Mock successful order placement
     mock_parent = Mock()
@@ -147,38 +147,38 @@ async def test_handle_no_position_places_order(state_machine, mock_ibkr_client):
     mock_child.order.orderType = "TRAIL"
     mock_child.order.trailingPercent = 10.0
     
-    mock_ibkr_client.place_entry_with_trailing_stop.return_value = (mock_parent, mock_child)
+    mock_alpaca_client.place_entry_with_trailing_stop.return_value = (mock_parent, mock_child)
     
     await state_machine.process({}, 50000)
     
     # Verify order was placed
-    mock_ibkr_client.place_entry_with_trailing_stop.assert_called_once()
+    mock_alpaca_client.place_entry_with_trailing_stop.assert_called_once()
 
 
 @pytest.mark.asyncio
-async def test_handle_position_open_missing_stop(state_machine, mock_ibkr_client):
+async def test_handle_position_open_missing_stop(state_machine, mock_alpaca_client):
     """Test that missing trailing stop is recreated."""
     # Position exists but no trailing stop
-    mock_ibkr_client.get_positions.return_value = {
+    mock_alpaca_client.get_positions.return_value = {
         "TSLA": {"quantity": 10, "avg_cost": 250.0, "market_value": 2500}
     }
-    mock_ibkr_client.get_open_orders.return_value = []
+    mock_alpaca_client.get_open_orders.return_value = []
     
     mock_trade = Mock()
     mock_trade.order.orderId = 2001
-    mock_ibkr_client.place_trailing_stop.return_value = mock_trade
+    mock_alpaca_client.place_trailing_stop.return_value = mock_trade
     
     await state_machine.process({}, 50000)
     
     # Verify trailing stop was created
-    mock_ibkr_client.place_trailing_stop.assert_called_once_with("TSLA", 10, 100.0)
+    mock_alpaca_client.place_trailing_stop.assert_called_once_with("TSLA", 10, 100.0)
 
 
 @pytest.mark.asyncio
-async def test_handle_position_open_duplicate_stops(state_machine, mock_ibkr_client):
+async def test_handle_position_open_duplicate_stops(state_machine, mock_alpaca_client):
     """Test that duplicate trailing stops are cancelled."""
     # Position with multiple trailing stops
-    mock_ibkr_client.get_positions.return_value = {
+    mock_alpaca_client.get_positions.return_value = {
         "TSLA": {"quantity": 10, "avg_cost": 250.0, "market_value": 2500}
     }
     
@@ -194,19 +194,19 @@ async def test_handle_position_open_duplicate_stops(state_machine, mock_ibkr_cli
     mock_stop2.order.orderType = "TRAIL"
     mock_stop2.order.totalQuantity = 10
     
-    mock_ibkr_client.get_open_orders.return_value = [mock_stop1, mock_stop2]
+    mock_alpaca_client.get_open_orders.return_value = [mock_stop1, mock_stop2]
     
     await state_machine.process({}, 50000)
     
     # Verify duplicate was cancelled (should cancel the second one)
-    mock_ibkr_client.cancel_order.assert_called_once_with(mock_stop2)
+    mock_alpaca_client.cancel_order.assert_called_once_with(mock_stop2)
 
 
 @pytest.mark.asyncio
-async def test_handle_position_open_qty_mismatch(state_machine, mock_ibkr_client):
+async def test_handle_position_open_qty_mismatch(state_machine, mock_alpaca_client):
     """Test that stop with wrong quantity is replaced."""
     # Position with 10 shares but stop for 5 shares
-    mock_ibkr_client.get_positions.return_value = {
+    mock_alpaca_client.get_positions.return_value = {
         "TSLA": {"quantity": 10, "avg_cost": 250.0, "market_value": 2500}
     }
     
@@ -216,17 +216,17 @@ async def test_handle_position_open_qty_mismatch(state_machine, mock_ibkr_client
     mock_stop.order.orderType = "TRAIL"
     mock_stop.order.totalQuantity = 5  # Wrong quantity
     
-    mock_ibkr_client.get_open_orders.return_value = [mock_stop]
+    mock_alpaca_client.get_open_orders.return_value = [mock_stop]
     
     mock_new_trade = Mock()
     mock_new_trade.order.orderId = 3001
-    mock_ibkr_client.place_trailing_stop.return_value = mock_new_trade
+    mock_alpaca_client.place_trailing_stop.return_value = mock_new_trade
     
     await state_machine.process({}, 50000)
     
     # Verify old stop was cancelled and new one created
-    mock_ibkr_client.cancel_order.assert_called_once_with(mock_stop)
-    mock_ibkr_client.place_trailing_stop.assert_called_once_with("TSLA", 10, 100.0)
+    mock_alpaca_client.cancel_order.assert_called_once_with(mock_stop)
+    mock_alpaca_client.place_trailing_stop.assert_called_once_with("TSLA", 10, 100.0)
 
 
 def test_on_stop_out_enters_cooldown(state_machine, db_manager, config):
@@ -246,7 +246,7 @@ def test_on_stop_out_enters_cooldown(state_machine, db_manager, config):
 
 
 @pytest.mark.asyncio
-async def test_cancel_unfilled_entries(state_machine, mock_ibkr_client):
+async def test_cancel_unfilled_entries(state_machine, mock_alpaca_client):
     """Test cancelling unfilled entry orders."""
     # Create mock pending entry order
     mock_entry = Mock()
@@ -255,16 +255,16 @@ async def test_cancel_unfilled_entries(state_machine, mock_ibkr_client):
     mock_entry.orderStatus.status = "Submitted"
     mock_entry.order.orderId = 1001
     
-    mock_ibkr_client.get_open_orders.return_value = [mock_entry]
+    mock_alpaca_client.get_open_orders.return_value = [mock_entry]
     
     await state_machine.cancel_unfilled_entries()
     
     # Verify order was cancelled
-    mock_ibkr_client.cancel_order.assert_called_once_with(mock_entry)
+    mock_alpaca_client.cancel_order.assert_called_once_with(mock_entry)
 
 
 @pytest.mark.asyncio
-async def test_cooldown_prevents_new_entry(state_machine, db_manager, mock_ibkr_client):
+async def test_cooldown_prevents_new_entry(state_machine, db_manager, mock_alpaca_client):
     """Test that cooldown prevents creating new entry orders."""
     # Set active cooldown
     future_time = datetime.utcnow() + timedelta(minutes=10)
@@ -279,5 +279,5 @@ async def test_cooldown_prevents_new_entry(state_machine, db_manager, mock_ibkr_
     await state_machine.process({}, 50000)
     
     # Verify no order was placed
-    mock_ibkr_client.place_entry_with_trailing_stop.assert_not_called()
+    mock_alpaca_client.place_entry_with_trailing_stop.assert_not_called()
 
