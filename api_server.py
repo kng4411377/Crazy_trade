@@ -12,7 +12,7 @@ from datetime import datetime
 sys.path.insert(0, str(Path(__file__).parent))
 
 from flask import Flask, jsonify, request
-from src.database import DatabaseManager, FillRecord, EventRecord
+from src.database import DatabaseManager, FillRecord, EventRecord, SymbolState
 from src.performance import PerformanceTracker
 
 app = Flask(__name__)
@@ -92,7 +92,7 @@ def status():
     try:
         with db.get_session() as session:
             # Symbol states
-            states = session.query(db.SymbolState).all()
+            states = session.query(SymbolState).all()
             symbol_states = []
             for state in states:
                 in_cooldown = state.cooldown_until_ts and state.cooldown_until_ts > datetime.utcnow()
