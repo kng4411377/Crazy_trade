@@ -38,6 +38,11 @@ bot.db
 
 # Logs
 *.log
+logs/
+
+# Background mode
+.bot.pid
+.api.pid
 
 # Environment variables and secrets
 .env
