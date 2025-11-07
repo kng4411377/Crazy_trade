@@ -38,17 +38,32 @@ def test_config_from_yaml():
         "watchlist": ["TSLA", "NVDA", "AAPL"],
     }
     
+    # Create both config and secrets files
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
         yaml.dump(config_data, f)
         temp_path = f.name
     
+    # Create a temporary secrets file in the same directory
+    secrets_path = Path(temp_path).parent / "secrets.yaml"
+    secrets_data = {
+        "alpaca": {
+            "api_key": "secret_test_key",
+            "secret_key": "secret_test_secret"
+        }
+    }
+    
     try:
+        with open(secrets_path, 'w') as sf:
+            yaml.dump(secrets_data, sf)
+        
         config = BotConfig.from_yaml(temp_path)
         assert config.mode == "paper"
         assert len(config.watchlist) == 3
         assert "TSLA" in config.watchlist
     finally:
         Path(temp_path).unlink()
+        if secrets_path.exists():
+            secrets_path.unlink()
 
 
 def test_watchlist_normalization():

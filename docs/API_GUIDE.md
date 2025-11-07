@@ -197,13 +197,18 @@ curl http://localhost:8080/fills?limit=50
 ---
 
 ### `GET /orders`
-Active orders (pending/submitted)
+Orders - active by default, or all/filtered with optional parameters
+
+**Parameters:**
+- `status` (optional): Filter by status (default: "active", or use "all", "Filled", "Cancelled", etc.)
+- `limit` (optional): Number of orders to return (max: 200, no default for active, required for all/filtered)
 
 **Response:**
 ```json
 {
   "timestamp": "2024-10-31T14:30:00.123456",
   "count": 3,
+  "status_filter": "active",
   "orders": [
     {
       "order_id": 1001,
@@ -222,9 +227,19 @@ Active orders (pending/submitted)
 }
 ```
 
-**Example:**
+**Examples:**
 ```bash
+# Active orders only (default)
 curl http://localhost:8080/orders
+
+# All orders (last 50)
+curl http://localhost:8080/orders?status=all&limit=50
+
+# Only filled orders (last 100)
+curl http://localhost:8080/orders?status=Filled&limit=100
+
+# Only cancelled orders (last 20)
+curl http://localhost:8080/orders?status=Cancelled&limit=20
 ```
 
 ---

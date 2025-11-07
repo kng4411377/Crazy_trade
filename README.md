@@ -312,7 +312,7 @@ curl http://your-server-ip:8080/fills
 curl http://your-server-ip:8080/
 ```
 
-See **`API_GUIDE.md`** for full API documentation.
+See **[`docs/API_GUIDE.md`](docs/API_GUIDE.md)** for full API documentation.
 
 ## ⚙️ Configuration Reference
 

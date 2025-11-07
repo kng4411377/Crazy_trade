@@ -28,12 +28,17 @@ class TestGapUpScenario:
         
         # Mock successful entry with trailing stop
         mock_parent = Mock()
-        mock_parent.order.orderId = 1001
+        mock_parent.order.id = 1001
+        mock_parent.order.type = Mock(value="STP")  # Nested Mock for type.value
+        mock_parent.order.status = Mock(value="Submitted")  # Nested Mock for status.value
         mock_parent.order.orderType = "STP"
         mock_parent.order.auxPrice = 105.0
+        mock_parent.order.stop_price = 105.0
+        mock_parent.order.limit_price = None
+        mock_parent.order.trailing_percent = None
         
         mock_child = Mock()
-        mock_child.order.orderId = 1002
+        mock_child.order.id = 1002  # Use .id, not .orderId
         mock_child.order.orderType = "TRAIL"
         mock_child.order.trailingPercent = 10.0
         
@@ -61,9 +66,15 @@ class TestGapUpScenario:
         mock_stop = Mock()
         mock_stop.contract.symbol = "TSLA"
         mock_stop.order.action = "SELL"
+        mock_stop.order.side = Mock(value="SELL")
+        mock_stop.order.type = Mock(value="trailing_stop")
         mock_stop.order.orderType = "TRAIL"
         mock_stop.order.totalQuantity = 10
+        mock_stop.order.qty = 10.0
+        mock_stop.order.id = 2001
         mock_alpaca.get_open_orders.return_value = [mock_stop]
+        # Mock place_trailing_stop in case it's needed
+        mock_alpaca.place_trailing_stop = AsyncMock(return_value=mock_stop)
         
         # Process again - should verify stop is healthy
         await sm.process({}, 50000)
@@ -126,14 +137,24 @@ class TestCooldownScenario:
         mock_alpaca.get_last_price = AsyncMock(return_value=100.0)
         
         mock_parent = Mock()
-        mock_parent.order.orderId = 1001
+        mock_parent.order.id = 1001
+        mock_parent.order.type = Mock(value="STP")  # Nested Mock for type.value
+        mock_parent.order.status = Mock(value="Submitted")  # Nested Mock for status.value
         mock_parent.order.orderType = "STP"
         mock_parent.order.auxPrice = 105.0
+        mock_parent.order.stop_price = 105.0
+        mock_parent.order.limit_price = None
+        mock_parent.order.trailing_percent = None
         
         mock_child = Mock()
-        mock_child.order.orderId = 1002
+        mock_child.order.id = 1002
+        mock_child.order.type = Mock(value="TRAIL")
+        mock_child.order.status = Mock(value="Submitted")
         mock_child.order.orderType = "TRAIL"
         mock_child.order.trailingPercent = 10.0
+        mock_child.order.stop_price = None
+        mock_child.order.limit_price = None
+        mock_child.order.trailing_percent = 10.0
         
         mock_alpaca.place_entry_with_trailing_stop = AsyncMock(
             return_value=(mock_parent, mock_child)
@@ -182,25 +203,39 @@ class TestDuplicateStopScenario:
         mock_stop1 = Mock()
         mock_stop1.contract.symbol = "TSLA"
         mock_stop1.order.action = "SELL"
+        mock_stop1.order.side = Mock(value="SELL")  # Add side.value
+        mock_stop1.order.type = Mock(value="trailing_stop")  # Add type.value
         mock_stop1.order.orderType = "TRAIL"
         mock_stop1.order.totalQuantity = 10
-        mock_stop1.order.orderId = 2001
+        mock_stop1.order.qty = 10.0  # Add qty
+        mock_stop1.order.id = 2001
         
         mock_stop2 = Mock()
         mock_stop2.contract.symbol = "TSLA"
         mock_stop2.order.action = "SELL"
+        mock_stop2.order.side = Mock(value="SELL")
+        mock_stop2.order.type = Mock(value="trailing_stop")
         mock_stop2.order.orderType = "TRAIL"
         mock_stop2.order.totalQuantity = 10
-        mock_stop2.order.orderId = 2002
+        mock_stop2.order.qty = 10.0
+        mock_stop2.order.id = 2002
         
         mock_stop3 = Mock()
         mock_stop3.contract.symbol = "TSLA"
         mock_stop3.order.action = "SELL"
+        mock_stop3.order.side = Mock(value="SELL")
+        mock_stop3.order.type = Mock(value="trailing_stop")
         mock_stop3.order.orderType = "TRAIL"
         mock_stop3.order.totalQuantity = 10
-        mock_stop3.order.orderId = 2003
+        mock_stop3.order.qty = 10.0
+        mock_stop3.order.id = 2003
         
         mock_alpaca.get_open_orders = Mock(return_value=[mock_stop1, mock_stop2, mock_stop3])
+        
+        # Mock place_trailing_stop to return AsyncMock properly
+        mock_trailing_stop = Mock()
+        mock_trailing_stop.order.id = 2001
+        mock_alpaca.place_trailing_stop = AsyncMock(return_value=mock_trailing_stop)
         
         sizer = PositionSizer(test_config)
         sm = SymbolStateMachine("TSLA", test_config, mock_alpaca, test_db, sizer)
@@ -247,8 +282,9 @@ class TestEODCancellation:
         mock_entry = Mock()
         mock_entry.contract.symbol = "TSLA"
         mock_entry.order.action = "BUY"
-        mock_entry.orderStatus.status = "Submitted"
-        mock_entry.order.orderId = 1001
+        mock_entry.order.side = Mock(value="BUY")  # Add side.value
+        mock_entry.orderStatus.status = "accepted"  # Use valid status
+        mock_entry.order.id = 1001
         
         mock_alpaca.get_open_orders = Mock(return_value=[mock_entry])
         
@@ -262,12 +298,12 @@ class TestEODCancellation:
         mock_alpaca.cancel_order.assert_called_once_with(mock_entry)
         
         # Verify event logged
+        from src.database import EventRecord
         with test_db.get_session() as session:
-            events = session.query(test_db.EventRecord).filter_by(
+            events = session.query(EventRecord).filter_by(
                 event_type="entry_cancelled_eod"
             ).all()
-            # At least one cancellation event (may vary based on imports)
-            # Just verify the method works without error
+            assert len(events) >= 1  # At least one cancellation event
 
 
 @pytest.mark.integration

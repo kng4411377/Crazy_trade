@@ -86,12 +86,14 @@ def test_get_status_position_open(state_machine, mock_alpaca_client):
     assert status == SymbolStatus.POSITION_OPEN
 
 
-def test_get_status_entry_pending(state_machine, mock_alpaca_client):
+def test_get_status_entry_pending(state_machine, mock_alpaca_client, db_manager):
     """Test status detection when entry order is pending."""
     mock_order = Mock()
     mock_order.contract.symbol = "TSLA"
     mock_order.order.action = "BUY"
-    mock_order.orderStatus.status = "Submitted"
+    mock_order.order.side = Mock(value="BUY")  # Add side.value
+    mock_order.orderStatus.status = "accepted"  # Use valid status
+    mock_order.order.id = 1001
     
     mock_alpaca_client.get_positions.return_value = {}
     mock_alpaca_client.get_open_orders.return_value = [mock_order]
@@ -138,16 +140,29 @@ async def test_handle_no_position_places_order(state_machine, mock_alpaca_client
     """Test that NO_POSITION state places entry order."""
     # Mock successful order placement
     mock_parent = Mock()
-    mock_parent.order.orderId = 1001
+    mock_parent.order.id = 1001
+    mock_parent.order.type = Mock(value="STP")
+    mock_parent.order.status = Mock(value="Submitted")
     mock_parent.order.orderType = "STP"
     mock_parent.order.auxPrice = 105.0
+    mock_parent.order.stop_price = 105.0
+    mock_parent.order.limit_price = None
+    mock_parent.order.trailing_percent = None
     
     mock_child = Mock()
-    mock_child.order.orderId = 1002
+    mock_child.order.id = 1002
+    mock_child.order.type = Mock(value="TRAIL")
+    mock_child.order.status = Mock(value="Submitted")
     mock_child.order.orderType = "TRAIL"
     mock_child.order.trailingPercent = 10.0
+    mock_child.order.stop_price = None
+    mock_child.order.limit_price = None
+    mock_child.order.trailing_percent = 10.0
     
-    mock_alpaca_client.place_entry_with_trailing_stop.return_value = (mock_parent, mock_child)
+    # Use AsyncMock for async method
+    mock_alpaca_client.place_entry_with_trailing_stop = AsyncMock(
+        return_value=(mock_parent, mock_child)
+    )
     
     await state_machine.process({}, 50000)
     
@@ -165,8 +180,9 @@ async def test_handle_position_open_missing_stop(state_machine, mock_alpaca_clie
     mock_alpaca_client.get_open_orders.return_value = []
     
     mock_trade = Mock()
-    mock_trade.order.orderId = 2001
-    mock_alpaca_client.place_trailing_stop.return_value = mock_trade
+    mock_trade.order.id = 2001  # Use .id
+    # Use AsyncMock for async method
+    mock_alpaca_client.place_trailing_stop = AsyncMock(return_value=mock_trade)
     
     await state_machine.process({}, 50000)
     
@@ -185,16 +201,26 @@ async def test_handle_position_open_duplicate_stops(state_machine, mock_alpaca_c
     mock_stop1 = Mock()
     mock_stop1.contract.symbol = "TSLA"
     mock_stop1.order.action = "SELL"
+    mock_stop1.order.side = Mock(value="SELL")
+    mock_stop1.order.type = Mock(value="trailing_stop")
     mock_stop1.order.orderType = "TRAIL"
     mock_stop1.order.totalQuantity = 10
+    mock_stop1.order.qty = 10.0
+    mock_stop1.order.id = 2001
     
     mock_stop2 = Mock()
     mock_stop2.contract.symbol = "TSLA"
     mock_stop2.order.action = "SELL"
+    mock_stop2.order.side = Mock(value="SELL")
+    mock_stop2.order.type = Mock(value="trailing_stop")
     mock_stop2.order.orderType = "TRAIL"
     mock_stop2.order.totalQuantity = 10
+    mock_stop2.order.qty = 10.0
+    mock_stop2.order.id = 2002
     
     mock_alpaca_client.get_open_orders.return_value = [mock_stop1, mock_stop2]
+    # Use AsyncMock for async cancel
+    mock_alpaca_client.cancel_order = AsyncMock()
     
     await state_machine.process({}, 50000)
     
@@ -213,14 +239,20 @@ async def test_handle_position_open_qty_mismatch(state_machine, mock_alpaca_clie
     mock_stop = Mock()
     mock_stop.contract.symbol = "TSLA"
     mock_stop.order.action = "SELL"
+    mock_stop.order.side = Mock(value="SELL")
+    mock_stop.order.type = Mock(value="trailing_stop")
     mock_stop.order.orderType = "TRAIL"
     mock_stop.order.totalQuantity = 5  # Wrong quantity
+    mock_stop.order.qty = 5.0
+    mock_stop.order.id = 3000
     
     mock_alpaca_client.get_open_orders.return_value = [mock_stop]
     
     mock_new_trade = Mock()
-    mock_new_trade.order.orderId = 3001
-    mock_alpaca_client.place_trailing_stop.return_value = mock_new_trade
+    mock_new_trade.order.id = 3001  # Use .id
+    # Use AsyncMock for async methods
+    mock_alpaca_client.cancel_order = AsyncMock()
+    mock_alpaca_client.place_trailing_stop = AsyncMock(return_value=mock_new_trade)
     
     await state_machine.process({}, 50000)
     
@@ -252,10 +284,13 @@ async def test_cancel_unfilled_entries(state_machine, mock_alpaca_client):
     mock_entry = Mock()
     mock_entry.contract.symbol = "TSLA"
     mock_entry.order.action = "BUY"
-    mock_entry.orderStatus.status = "Submitted"
-    mock_entry.order.orderId = 1001
+    mock_entry.order.side = Mock(value="BUY")  # Add side.value
+    mock_entry.orderStatus.status = "accepted"  # Use valid status for cancellation
+    mock_entry.order.id = 1001
     
     mock_alpaca_client.get_open_orders.return_value = [mock_entry]
+    # Use AsyncMock for async cancel
+    mock_alpaca_client.cancel_order = AsyncMock()
     
     await state_machine.cancel_unfilled_entries()
     

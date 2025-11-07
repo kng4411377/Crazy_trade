@@ -8,7 +8,7 @@
 #   2. Edit secrets.yaml with your real API keys
 #   3. Never commit secrets.yaml to Git!
 #
-# See SETUP_SECRETS.md for detailed instructions
+# See docs/SETUP_SECRETS.md for detailed instructions
 
 mode: "paper"          # "paper" | "live" (determines paper vs live Alpaca endpoint)
 
@@ -28,6 +28,8 @@ watchlist:
   - "DNUT"
   - "GPRO"
   - "HTZ"
+  - "PTON"
+  - "QS"
 
 allocation:
   # Dollar-based sizing to cap risk per symbol and overall

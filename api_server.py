@@ -12,7 +12,7 @@ from datetime import datetime
 sys.path.insert(0, str(Path(__file__).parent))
 
 from flask import Flask, jsonify, request
-from src.database import DatabaseManager, FillRecord, EventRecord, SymbolState
+from src.database import DatabaseManager, FillRecord, EventRecord, SymbolState, OrderRecord
 from src.performance import PerformanceTracker
 
 app = Flask(__name__)
@@ -46,7 +46,9 @@ def index():
             "/performance": "Performance metrics and P&L",
             "/fills": "Recent fills (default 20)",
             "/fills?limit=N": "Recent N fills",
-            "/orders": "Active orders",
+            "/orders": "Active orders (default)",
+            "/orders?status=all&limit=N": "All orders with limit",
+            "/orders?status=Filled&limit=N": "Orders by status with limit",
             "/events": "Recent events (default 20)",
             "/events?limit=N": "Recent N events",
             "/daily": "Daily P&L (default 10 days)",
@@ -235,10 +237,32 @@ def fills():
 
 @app.route('/orders')
 def orders():
-    """Get active orders."""
+    """Get orders (active by default, or all with limit)."""
     try:
+        limit = request.args.get('limit', default=None, type=int)
+        status_filter = request.args.get('status', default='active', type=str)
+        
+        if limit:
+            limit = min(limit, 200)  # Cap at 200
+        
         with db.get_session() as session:
-            active_orders = db.get_active_orders(session)
+            if status_filter == 'active':
+                # Only active orders (default behavior)
+                orders_list = db.get_active_orders(session)
+            elif status_filter == 'all':
+                # All orders with limit
+                query = session.query(OrderRecord).order_by(OrderRecord.created_at.desc())
+                if limit:
+                    query = query.limit(limit)
+                orders_list = query.all()
+            else:
+                # Filter by specific status
+                query = session.query(OrderRecord).filter(
+                    OrderRecord.status == status_filter
+                ).order_by(OrderRecord.created_at.desc())
+                if limit:
+                    query = query.limit(limit)
+                orders_list = query.all()
             
             orders_data = [{
                 "order_id": order.order_id,
@@ -252,11 +276,12 @@ def orders():
                 "trailing_pct": order.trailing_pct,
                 "parent_id": order.parent_id,
                 "created_at": format_timestamp(order.created_at)
-            } for order in active_orders]
+            } for order in orders_list]
             
             return jsonify({
                 "timestamp": datetime.utcnow().isoformat(),
                 "count": len(orders_data),
+                "status_filter": status_filter,
                 "orders": orders_data
             })
     except Exception as e:

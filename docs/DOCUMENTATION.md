@@ -4,7 +4,7 @@ Complete documentation for the Crazy Trade Bot.
 
 ## 🚀 Getting Started
 
-### **[README.md](README.md)** - Main Overview
+### **[README.md](../README.md)** - Main Overview
 - What the bot does
 - Features and architecture
 - Basic concepts
@@ -132,10 +132,13 @@ python3 scripts/check_status.py
 ```
 crazy_trade/
 ├── README.md                    # Main overview
-├── QUICKSTART.md               # Getting started
-├── SETUP_SECRETS.md            # API keys setup
-├── UBUNTU_DEPLOYMENT.md        # Server deployment
-├── API_GUIDE.md                # API documentation
+├── docs/                        # Documentation folder
+│   ├── QUICKSTART.md           # Getting started
+│   ├── SETUP_SECRETS.md        # API keys setup
+│   ├── UBUNTU_DEPLOYMENT.md    # Server deployment
+│   ├── API_GUIDE.md            # API documentation
+│   ├── DOCUMENTATION.md        # This index
+│   └── CHANGELOG.md            # Version history
 │
 ├── config.yaml                 # Main configuration
 ├── secrets.yaml                # API keys (in .gitignore)
