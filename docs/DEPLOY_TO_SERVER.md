@@ -5,6 +5,7 @@
 1. ✅ **UUID database errors** - All order IDs converted to strings
 2. ✅ **UUID JSON serialization errors** - Event payloads now serialize UUIDs
 3. ✅ **SHIB price rounding to 0** - Auto-detect tick size based on price magnitude
+4. ✅ **UUID logging display** - Clean UUID format in logs (not "UUID('...')")
 
 ---
 

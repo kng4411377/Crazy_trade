@@ -250,7 +250,7 @@ class AlpacaClient:
             logger.info(
                 "entry_order_placed",
                 symbol=symbol,
-                order_id=order.id,
+                order_id=str(order.id),  # Convert UUID to string for clean logging
                 qty=qty,
                 entry_price=entry_price,
                 order_type=order.type.value,
@@ -333,7 +333,7 @@ class AlpacaClient:
             logger.info(
                 "exit_order_placed",
                 symbol=symbol,
-                order_id=order.id,
+                order_id=str(order.id),  # Convert UUID to string for clean logging
                 qty=qty,
                 trail_percent=trail_percent if not is_crypto else None,
                 stop_price=stop_price if is_crypto else None,
