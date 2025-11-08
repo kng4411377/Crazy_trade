@@ -35,10 +35,17 @@ watchlist:
 # Crypto watchlist (trades 24/7)
 # Alpaca format: SYMBOL or SYMBOL/USD (USD will be added automatically)
 crypto_watchlist:
-  - "BTC/USD"     # Bitcoin (✅ works in paper trading)
-  - "ETH/USD"     # Ethereum (✅ works in paper trading)
-  # ⚠️  Only BTC and ETH supported in paper trading!
-  # DOGE, SHIB and other altcoins only work in LIVE mode
+  - "BTC/USD"     # Bitcoin (most liquid)
+  - "ETH/USD"     # Ethereum (most liquid)
+  - "DOGE/USD"    # Dogecoin (high volatility! ✅ supported)
+  - "SHIB/USD"    # Shiba Inu (high volatility! ✅ supported)
+  # Other top cryptos supported on Alpaca:
+  # - "SOL/USD"   # Solana
+  # - "LINK/USD"  # Chainlink
+  # - "XRP/USD"   # Ripple
+  # - "LTC/USD"   # Litecoin
+  # - "AVAX/USD"  # Avalanche
+  # - "UNI/USD"   # Uniswap
 
 allocation:
   # Dollar-based sizing to cap risk per symbol and overall

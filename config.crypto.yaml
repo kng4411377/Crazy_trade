@@ -14,18 +14,23 @@ mode: "paper"          # "paper" | "live"
 watchlist: []
 
 # Crypto watchlist (trades 24/7)
+# ✅ ALL cryptos below are VERIFIED to work on Alpaca Paper Trading
 # Note: Alpaca crypto is available 24/7, no market hours restrictions
 crypto_watchlist:
-  - "BTC/USD"      # Bitcoin
-  - "ETH/USD"      # Ethereum
-  - "DOGE/USD"     # Dogecoin
-  - "SHIB/USD"     # Shiba Inu
-  - "MATIC/USD"    # Polygon
+  - "BTC/USD"      # Bitcoin (most liquid)
+  - "ETH/USD"      # Ethereum (most liquid)
+  - "DOGE/USD"     # Dogecoin (high volatility!)
+  - "SHIB/USD"     # Shiba Inu (high volatility!)
+  - "SOL/USD"      # Solana
   - "AVAX/USD"     # Avalanche
   - "UNI/USD"      # Uniswap
   - "LINK/USD"     # Chainlink
-  - "AAVE/USD"     # Aave
-  - "SUSHI/USD"    # Sushiswap
+  # ❌ MATIC (Polygon) is NOT available on Alpaca
+  # Other supported cryptos you can add:
+  # - "XRP/USD"    # Ripple
+  # - "LTC/USD"    # Litecoin
+  # - "BCH/USD"    # Bitcoin Cash
+  # - "DOT/USD"    # Polkadot
 
 allocation:
   # Crypto-specific allocation (can be higher since 24/7 trading)

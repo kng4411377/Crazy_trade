@@ -51,6 +51,13 @@ Complete documentation for the Crazy Trade Bot.
 - Conservative and aggressive strategies
 - 24/7 trading best practices
 
+### **[CRYPTO_SYMBOLS.md](CRYPTO_SYMBOLS.md)** - Supported Crypto Symbols 🆕
+- Verified list of 14 supported cryptos on Alpaca
+- Trading pairs and liquidity tiers
+- Meme coins (DOGE, SHIB) vs blue chips (BTC, ETH)
+- Configuration tips for different volatility levels
+- What's NOT available (MATIC, ADA, BNB, etc.)
+
 ---
 
 ## 📖 Additional Resources

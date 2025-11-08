@@ -23,8 +23,8 @@ from alpaca.trading.enums import (
     QueryOrderStatus,
     OrderClass,
 )
-from alpaca.data.historical import StockHistoricalDataClient
-from alpaca.data.requests import StockLatestQuoteRequest
+from alpaca.data.historical import StockHistoricalDataClient, CryptoHistoricalDataClient
+from alpaca.data.requests import StockLatestQuoteRequest, CryptoLatestQuoteRequest
 
 from src.config import BotConfig
 
@@ -72,11 +72,12 @@ class AlpacaClient:
                 paper=self.config.mode == "paper"
             )
             
-            # Initialize data client (for market data)
+            # Initialize data clients (for market data)
             self.data_client = StockHistoricalDataClient(
                 api_key=self.config.alpaca.api_key,
                 secret_key=self.config.alpaca.secret_key
             )
+            self.crypto_data_client = CryptoHistoricalDataClient()  # No auth needed for crypto data
             
             # Test connection
             account = self.trading_client.get_account()
@@ -97,35 +98,53 @@ class AlpacaClient:
         if self.connected:
             self.trading_client = None
             self.data_client = None
+            self.crypto_data_client = None
             self.connected = False
             logger.info("alpaca_disconnected")
 
     async def get_last_price(self, symbol: str) -> Optional[float]:
         """
-        Get last traded price for a symbol.
+        Get last traded price for a symbol (stocks or crypto).
         
         Args:
-            symbol: Stock symbol
+            symbol: Stock or crypto symbol (e.g., 'AAPL' or 'BTC/USD')
             
         Returns:
             Last price or None if unavailable
         """
         try:
-            request = StockLatestQuoteRequest(symbol_or_symbols=symbol)
-            quotes = self.data_client.get_stock_latest_quote(request)
+            # Detect if symbol is crypto (contains '/')
+            is_crypto = '/' in symbol or self.config.is_crypto_symbol(symbol)
             
-            if symbol in quotes:
-                quote = quotes[symbol]
-                # Use mid-point of bid/ask for better pricing
-                price = (quote.bid_price + quote.ask_price) / 2.0
-                logger.debug("price_fetched", symbol=symbol, price=price)
-                return float(price)
+            if is_crypto:
+                # Use crypto data API
+                request = CryptoLatestQuoteRequest(symbol_or_symbols=symbol)
+                quotes = self.crypto_data_client.get_crypto_latest_quote(request)
+                
+                if symbol in quotes:
+                    quote = quotes[symbol]
+                    # Use mid-point of bid/ask for better pricing
+                    price = (quote.bid_price + quote.ask_price) / 2.0
+                    logger.debug("crypto_price_fetched", symbol=symbol, price=price)
+                    return float(price)
+            else:
+                # Use stock data API
+                request = StockLatestQuoteRequest(symbol_or_symbols=symbol)
+                quotes = self.data_client.get_stock_latest_quote(request)
+                
+                if symbol in quotes:
+                    quote = quotes[symbol]
+                    # Use mid-point of bid/ask for better pricing
+                    price = (quote.bid_price + quote.ask_price) / 2.0
+                    logger.debug("stock_price_fetched", symbol=symbol, price=price)
+                    return float(price)
             
-            logger.warning("price_unavailable", symbol=symbol)
+            logger.warning("price_unavailable", symbol=symbol, is_crypto=is_crypto)
             return None
             
         except Exception as e:
             logger.error("price_fetch_failed", symbol=symbol, error=str(e))
+            logger.debug("cannot_fetch_price", symbol=symbol)
             return None
 
     def round_to_tick(self, price: float, tick_size: float = 0.01) -> float:
