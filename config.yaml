@@ -12,6 +12,7 @@
 
 mode: "paper"          # "paper" | "live" (determines paper vs live Alpaca endpoint)
 
+# Stock watchlist (trades during market hours only)
 watchlist: 
   - "BBBY"
   - "BYND"
@@ -31,13 +32,20 @@ watchlist:
   - "PTON"
   - "QS"
 
+# Crypto watchlist (trades 24/7)
+# Alpaca format: SYMBOL or SYMBOL/USD (USD will be added automatically)
+crypto_watchlist:
+  - "DOGE/USD"     # Dogecoin
+  - "SHIB/USD"     # Shiba Inu
+  # Add more crypto here...
+
 allocation:
   # Dollar-based sizing to cap risk per symbol and overall
-  total_usd_cap: 20000
+  total_usd_cap: 50000
   per_symbol_usd: 1000         # default per-symbol budget
   per_symbol_override: {}       # e.g., {"TSLA": 1500}
   min_cash_reserve_percent: 10
-  allow_fractional: false       # set true if your account allows fractional
+  allow_fractional: true       # MUST be true for crypto! Set to true if trading crypto_watchlist
 
 entries:
   type: "buy_stop"              # "buy_stop" | "buy_stop_limit"

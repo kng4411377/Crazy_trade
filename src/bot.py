@@ -40,9 +40,10 @@ class TradingBot:
         )
         self.sizer = PositionSizer(config)
         
-        # State machines for each symbol
+        # State machines for each symbol (stocks + crypto)
         self.state_machines: Dict[str, SymbolStateMachine] = {}
-        for symbol in config.watchlist:
+        all_symbols = config.get_all_symbols()
+        for symbol in all_symbols:
             self.state_machines[symbol] = SymbolStateMachine(
                 symbol, config, self.alpaca, self.db, self.sizer
             )
@@ -67,8 +68,11 @@ class TradingBot:
         logger.info(
             "trading_bot_initialized",
             mode=config.mode,
-            watchlist=config.watchlist,
-            num_symbols=len(config.watchlist),
+            stock_watchlist=config.watchlist,
+            crypto_watchlist=config.crypto_watchlist,
+            num_stocks=len(config.watchlist),
+            num_crypto=len(config.crypto_watchlist),
+            total_symbols=len(all_symbols),
         )
 
     async def start(self):
@@ -91,7 +95,8 @@ class TradingBot:
                 event_type="bot_started",
                 payload={
                     "mode": self.config.mode,
-                    "watchlist": self.config.watchlist,
+                    "stock_watchlist": self.config.watchlist,
+                    "crypto_watchlist": self.config.crypto_watchlist,
                 },
             )
         
@@ -127,13 +132,15 @@ class TradingBot:
         
         while self.running:
             try:
-                # Check if we're in trading hours
+                # Check if we're in trading hours (for stocks)
                 in_rth = self.market_hours.is_regular_trading_hours()
+                has_crypto = len(self.config.crypto_watchlist) > 0
                 
-                if in_rth:
-                    await self._process_trading_logic()
+                # Process crypto always (24/7) or stocks during market hours
+                if in_rth or has_crypto:
+                    await self._process_trading_logic(in_rth=in_rth)
                 else:
-                    logger.debug("outside_trading_hours")
+                    logger.debug("outside_trading_hours_no_crypto")
                     # Keep connection alive even when market is closed
                     await self._keepalive_tick()
                     await asyncio.sleep(60)  # Check every minute when market is closed
@@ -160,8 +167,12 @@ class TradingBot:
         
         logger.info("exiting_main_loop")
 
-    async def _process_trading_logic(self):
-        """Process trading logic for all symbols."""
+    async def _process_trading_logic(self, in_rth: bool = True):
+        """Process trading logic for all symbols.
+        
+        Args:
+            in_rth: Whether we're in regular trading hours (affects stock trading)
+        """
         # Get current positions and account value
         positions = self.alpaca.get_positions()
         account_value = self.alpaca.get_account_value()
@@ -178,6 +189,12 @@ class TradingBot:
         # Process each symbol
         for symbol, sm in self.state_machines.items():
             try:
+                # Skip stocks if market is closed
+                is_crypto = self.config.is_crypto_symbol(symbol)
+                if not is_crypto and not in_rth:
+                    logger.debug("skipping_stock_outside_rth", symbol=symbol)
+                    continue
+                
                 await sm.process(position_values, account_value)
             except Exception as e:
                 logger.error(
@@ -188,7 +205,7 @@ class TradingBot:
                 )
 
     async def _handle_eod_cancellations(self):
-        """Handle end-of-day order cancellations."""
+        """Handle end-of-day order cancellations (stocks only, not crypto)."""
         if not self.config.entries.cancel_at_close:
             return
         
@@ -199,17 +216,19 @@ class TradingBot:
             # Check if we've already done this today
             today = datetime.utcnow().date()
             if self.last_eod_cancel != today:
-                logger.info("cancelling_unfilled_entries_eod")
+                logger.info("cancelling_unfilled_stock_entries_eod")
                 
+                # Only cancel stock orders, not crypto (crypto trades 24/7)
                 for symbol, sm in self.state_machines.items():
-                    await sm.cancel_unfilled_entries()
+                    if not self.config.is_crypto_symbol(symbol):
+                        await sm.cancel_unfilled_entries()
                 
                 self.last_eod_cancel = today
                 
                 with self.db.get_session() as session:
                     self.db.add_event(
                         session,
-                        event_type="eod_cancellations_completed",
+                        event_type="eod_stock_cancellations_completed",
                     )
 
     async def _check_order_events(self):

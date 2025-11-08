@@ -14,6 +14,11 @@ Complete documentation for the Crazy Trade Bot.
 - Configuration basics
 - First run tutorial
 
+### **[CRYPTO_SETUP.md](CRYPTO_SETUP.md)** - Quick Crypto Setup 🆕
+- Add crypto trading in minutes
+- BTC, ETH, DOGE and more
+- 24/7 trading configuration
+
 ### **[SETUP_SECRETS.md](SETUP_SECRETS.md)** - API Keys Setup
 - How to get Alpaca API keys
 - Secure secrets management
@@ -38,6 +43,13 @@ Complete documentation for the Crazy Trade Bot.
 - Request/response examples
 - Monitoring your bot
 - Performance metrics
+
+### **[CRYPTO_GUIDE.md](CRYPTO_GUIDE.md)** - Complete Crypto Guide 🆕
+- Full cryptocurrency trading guide
+- Crypto vs stocks differences
+- Best cryptos for this strategy
+- Conservative and aggressive strategies
+- 24/7 trading best practices
 
 ---
 
@@ -137,6 +149,8 @@ crazy_trade/
 │   ├── SETUP_SECRETS.md        # API keys setup
 │   ├── UBUNTU_DEPLOYMENT.md    # Server deployment
 │   ├── API_GUIDE.md            # API documentation
+│   ├── CRYPTO_GUIDE.md         # Crypto trading guide (NEW!)
+│   ├── CRYPTO_SETUP.md         # Quick crypto setup (NEW!)
 │   ├── DOCUMENTATION.md        # This index
 │   └── CHANGELOG.md            # Version history
 │

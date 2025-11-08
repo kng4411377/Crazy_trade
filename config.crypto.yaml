@@ -1,0 +1,80 @@
+# Crypto-Only Trading Bot Configuration
+#
+# ⚠️  IMPORTANT: API keys are NOT stored here!
+# API keys are in secrets.yaml (which is in .gitignore)
+#
+# This config trades ONLY crypto (24/7)
+# To use: python main.py config.crypto.yaml
+#
+# See docs/CRYPTO_GUIDE.md for full crypto trading documentation
+
+mode: "paper"          # "paper" | "live"
+
+# Stock watchlist (empty for crypto-only bot)
+watchlist: []
+
+# Crypto watchlist (trades 24/7)
+# Note: Alpaca crypto is available 24/7, no market hours restrictions
+crypto_watchlist:
+  - "BTC/USD"      # Bitcoin
+  - "ETH/USD"      # Ethereum
+  - "DOGE/USD"     # Dogecoin
+  - "SHIB/USD"     # Shiba Inu
+  - "MATIC/USD"    # Polygon
+  - "AVAX/USD"     # Avalanche
+  - "UNI/USD"      # Uniswap
+  - "LINK/USD"     # Chainlink
+  - "AAVE/USD"     # Aave
+  - "SUSHI/USD"    # Sushiswap
+
+allocation:
+  # Crypto-specific allocation (can be higher since 24/7 trading)
+  total_usd_cap: 10000
+  per_symbol_usd: 500         # $500 per crypto
+  per_symbol_override:
+    "BTC/USD": 1000           # Bitcoin gets more allocation
+    "ETH/USD": 1000           # Ethereum gets more allocation
+  min_cash_reserve_percent: 20  # Keep more cash for volatility
+  allow_fractional: true        # Crypto supports fractional shares
+
+entries:
+  type: "buy_stop"
+  buy_stop_pct_above_last: 3.0  # Tighter entry (crypto moves fast)
+  stop_limit_max_slip_pct: 1.0
+  tif: "GTC"                    # Good Till Cancel (no market close)
+  cancel_at_close: false        # No market close for crypto
+  rearm_next_session: false     # Always active
+
+stops:
+  trailing_stop_pct: 8.0        # Tighter stop for crypto volatility
+  use_trailing_limit: false
+  trail_limit_offset_pct: 0.2
+  tif: "GTC"
+
+hours:
+  calendar: "XNYS"              # Not used for crypto, but required
+  allow_pre_market: false
+  allow_after_hours: false
+
+cooldowns:
+  after_stopout_minutes: 30     # Longer cooldown for crypto
+
+polling:
+  price_seconds: 10
+  orders_seconds: 10            # Check more frequently for crypto
+  keepalive_seconds: 300
+  event_check_seconds: 3        # Faster event checking
+
+risk:
+  max_total_exposure_usd: 10000
+  max_symbol_exposure_usd: 1500
+
+persistence:
+  db_url: "sqlite:///bot_crypto.db"  # Separate DB for crypto
+
+logging:
+  level: "INFO"
+
+alerts:
+  webhook: null
+

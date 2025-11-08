@@ -95,16 +95,22 @@ def status():
         with db.get_session() as session:
             # Symbol states
             states = session.query(SymbolState).all()
-            symbol_states = []
+            stock_states = []
+            crypto_states = []
             for state in states:
                 in_cooldown = state.cooldown_until_ts and state.cooldown_until_ts > datetime.utcnow()
-                symbol_states.append({
+                state_data = {
                     "symbol": state.symbol,
                     "in_cooldown": in_cooldown,
                     "cooldown_until": format_timestamp(state.cooldown_until_ts),
                     "last_parent_id": state.last_parent_id,
                     "last_trail_id": state.last_trail_id
-                })
+                }
+                # Separate stocks from crypto
+                if '/' in state.symbol:
+                    crypto_states.append(state_data)
+                else:
+                    stock_states.append(state_data)
             
             # Active orders count
             active_orders = db.get_active_orders(session)
@@ -123,7 +129,9 @@ def status():
             
             return jsonify({
                 "timestamp": datetime.utcnow().isoformat(),
-                "symbols": symbol_states,
+                "symbols": stock_states + crypto_states,  # All symbols
+                "stock_symbols": stock_states,
+                "crypto_symbols": crypto_states,
                 "active_orders": active_count,
                 "total_fills": total_fills,
                 "last_event": {

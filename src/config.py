@@ -88,6 +88,7 @@ class BotConfig(BaseModel):
     alpaca: AlpacaConfig
     mode: Literal["paper", "live"] = "paper"
     watchlist: list[str] = Field(default_factory=list)
+    crypto_watchlist: list[str] = Field(default_factory=list)  # NEW: Crypto symbols
     allocation: AllocationConfig = Field(default_factory=AllocationConfig)
     entries: EntriesConfig = Field(default_factory=EntriesConfig)
     stops: StopsConfig = Field(default_factory=StopsConfig)
@@ -102,10 +103,34 @@ class BotConfig(BaseModel):
     @field_validator("watchlist")
     @classmethod
     def validate_watchlist(cls, v):
-        """Ensure watchlist has at least one symbol."""
-        if not v:
-            raise ValueError("Watchlist must contain at least one symbol")
+        """Normalize stock watchlist to uppercase."""
+        if v is None:
+            return []
         return [s.upper() for s in v]
+    
+    @field_validator("crypto_watchlist")
+    @classmethod
+    def validate_crypto_watchlist(cls, v):
+        """Normalize crypto watchlist to uppercase with /USD suffix if needed."""
+        if v is None:
+            return []
+        normalized = []
+        for symbol in v:
+            symbol = symbol.upper()
+            # Add /USD suffix if not present (Alpaca format)
+            if '/' not in symbol:
+                symbol = f"{symbol}/USD"
+            normalized.append(symbol)
+        return normalized
+    
+    def get_all_symbols(self) -> list[str]:
+        """Get combined list of all symbols (stocks + crypto)."""
+        return self.watchlist + self.crypto_watchlist
+    
+    def is_crypto_symbol(self, symbol: str) -> bool:
+        """Check if a symbol is crypto."""
+        symbol = symbol.upper()
+        return symbol in self.crypto_watchlist or '/' in symbol
 
     @classmethod
     def from_yaml(cls, path: Union[str, Path]) -> "BotConfig":
