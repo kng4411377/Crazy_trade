@@ -35,9 +35,10 @@ watchlist:
 # Crypto watchlist (trades 24/7)
 # Alpaca format: SYMBOL or SYMBOL/USD (USD will be added automatically)
 crypto_watchlist:
-  - "DOGE/USD"     # Dogecoin
-  - "SHIB/USD"     # Shiba Inu
-  # Add more crypto here...
+  - "BTC/USD"     # Bitcoin (✅ works in paper trading)
+  - "ETH/USD"     # Ethereum (✅ works in paper trading)
+  # ⚠️  Only BTC and ETH supported in paper trading!
+  # DOGE, SHIB and other altcoins only work in LIVE mode
 
 allocation:
   # Dollar-based sizing to cap risk per symbol and overall

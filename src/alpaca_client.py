@@ -295,11 +295,18 @@ class AlpacaClient:
             positions = {}
             
             for position in positions_list:
+                # Safely get unrealized P&L (attribute may vary by account type)
+                unrealized_pnl = 0.0
+                if hasattr(position, 'unrealized_pl') and position.unrealized_pl:
+                    unrealized_pnl = float(position.unrealized_pl)
+                elif hasattr(position, 'unrealized_plpc') and position.unrealized_plpc:
+                    unrealized_pnl = float(position.unrealized_plpc) * float(position.market_value)
+                
                 positions[position.symbol] = {
                     "quantity": float(position.qty),
                     "avg_cost": float(position.avg_entry_price),
                     "market_value": float(position.market_value),
-                    "unrealized_pnl": float(position.unrealized_pl),
+                    "unrealized_pnl": unrealized_pnl,
                     "current_price": float(position.current_price),
                 }
             
@@ -426,16 +433,24 @@ class AlpacaClient:
         try:
             account = self.trading_client.get_account()
             
+            # Safely get unrealized P&L (attribute may vary by account type)
+            unrealized_pnl = 0.0
+            if hasattr(account, 'unrealized_pl'):
+                unrealized_pnl = float(account.unrealized_pl)
+            elif hasattr(account, 'unrealized_plpc'):
+                unrealized_pnl = float(account.unrealized_plpc)
+            
             summary = {
-                'NetLiquidation': float(account.equity),
-                'TotalCashValue': float(account.cash),
-                'GrossPositionValue': float(account.long_market_value),
-                'UnrealizedPnL': float(account.unrealized_pl),
-                'RealizedPnL': float(account.equity) - float(account.last_equity),
-                'AvailableFunds': float(account.cash),
-                'BuyingPower': float(account.buying_power),
+                'NetLiquidation': float(account.equity) if hasattr(account, 'equity') else 0.0,
+                'TotalCashValue': float(account.cash) if hasattr(account, 'cash') else 0.0,
+                'GrossPositionValue': float(account.long_market_value) if hasattr(account, 'long_market_value') else 0.0,
+                'UnrealizedPnL': unrealized_pnl,
+                'RealizedPnL': float(account.equity - account.last_equity) if hasattr(account, 'last_equity') else 0.0,
+                'AvailableFunds': float(account.cash) if hasattr(account, 'cash') else 0.0,
+                'BuyingPower': float(account.buying_power) if hasattr(account, 'buying_power') else 0.0,
             }
             
+            logger.info("account_summary_fetched", summary=summary)
             return summary
             
         except Exception as e:
