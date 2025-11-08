@@ -148,17 +148,28 @@ class AlpacaClient:
             logger.debug("cannot_fetch_price", symbol=symbol)
             return None
 
-    def round_to_tick(self, price: float, tick_size: float = 0.01) -> float:
+    def round_to_tick(self, price: float, tick_size: float = None) -> float:
         """
         Round price to nearest tick size.
         
         Args:
             price: Price to round
-            tick_size: Tick size (default 0.01)
+            tick_size: Tick size (default: auto-detect based on price magnitude)
             
         Returns:
             Rounded price
         """
+        if tick_size is None:
+            # Auto-detect tick size based on price magnitude
+            if price < 0.01:  # Very small prices (like SHIB at $0.00001)
+                tick_size = 0.0000001  # 7 decimal places
+            elif price < 1.0:  # Small prices (like some altcoins)
+                tick_size = 0.0001  # 4 decimal places
+            elif price < 10.0:
+                tick_size = 0.01  # 2 decimal places
+            else:
+                tick_size = 0.01  # Standard 2 decimal places
+        
         decimal_price = Decimal(str(price))
         decimal_tick = Decimal(str(tick_size))
         return float((decimal_price / decimal_tick).quantize(1, ROUND_DOWN) * decimal_tick)
