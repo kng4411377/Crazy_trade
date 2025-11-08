@@ -11,6 +11,7 @@ from datetime import datetime
 from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import (
     MarketOrderRequest,
+    LimitOrderRequest,
     StopOrderRequest,
     StopLimitOrderRequest,
     TrailingStopOrderRequest,
@@ -172,39 +173,61 @@ class AlpacaClient:
         We'll place the entry order first, and the trailing stop will be placed
         after the entry fills (handled by the bot's fill callback).
         
+        For crypto: Uses limit orders instead of stop orders (crypto doesn't support stops)
+        
         Args:
-            symbol: Stock symbol
-            qty: Quantity to buy
+            symbol: Stock or crypto symbol
+            qty: Quantity to buy (fractional supported for crypto)
             last_price: Current price
             
         Returns:
             Tuple of (parent_order, None) - child order placed after fill
         """
         try:
-            # Calculate stop price for entry
-            stop_pct = self.config.entries.buy_stop_pct_above_last
-            stop_price = self.round_to_tick(last_price * (1 + stop_pct / 100))
+            # Detect if symbol is crypto
+            is_crypto = self.config.is_crypto_symbol(symbol)
             
-            # Create entry order (Stop or Stop-Limit)
-            if self.config.entries.type == "buy_stop":
-                order_request = StopOrderRequest(
+            # Calculate entry price
+            entry_pct = self.config.entries.buy_stop_pct_above_last
+            entry_price = self.round_to_tick(last_price * (1 + entry_pct / 100))
+            
+            if is_crypto:
+                # Crypto: Use limit order (stop orders not supported)
+                # Limit order at breakout price acts similar to buy stop
+                order_request = LimitOrderRequest(
                     symbol=symbol,
                     qty=qty,
                     side=OrderSide.BUY,
-                    time_in_force=TimeInForce.DAY,
-                    stop_price=stop_price
+                    time_in_force=TimeInForce.GTC,  # GTC for crypto (24/7)
+                    limit_price=entry_price
                 )
-            else:  # buy_stop_limit
-                slip_pct = self.config.entries.stop_limit_max_slip_pct
-                limit_price = self.round_to_tick(stop_price * (1 + slip_pct / 100))
-                order_request = StopLimitOrderRequest(
+                logger.info(
+                    "crypto_entry_order_type",
                     symbol=symbol,
-                    qty=qty,
-                    side=OrderSide.BUY,
-                    time_in_force=TimeInForce.DAY,
-                    stop_price=stop_price,
-                    limit_price=limit_price
+                    order_type="limit",
+                    note="Stop orders not supported for crypto, using limit order"
                 )
+            else:
+                # Stocks: Use stop orders (standard)
+                if self.config.entries.type == "buy_stop":
+                    order_request = StopOrderRequest(
+                        symbol=symbol,
+                        qty=qty,
+                        side=OrderSide.BUY,
+                        time_in_force=TimeInForce.DAY,
+                        stop_price=entry_price
+                    )
+                else:  # buy_stop_limit
+                    slip_pct = self.config.entries.stop_limit_max_slip_pct
+                    limit_price = self.round_to_tick(entry_price * (1 + slip_pct / 100))
+                    order_request = StopLimitOrderRequest(
+                        symbol=symbol,
+                        qty=qty,
+                        side=OrderSide.BUY,
+                        time_in_force=TimeInForce.DAY,
+                        stop_price=entry_price,
+                        limit_price=limit_price
+                    )
             
             # Submit order
             order = self.trading_client.submit_order(order_request)
@@ -218,8 +241,9 @@ class AlpacaClient:
                 symbol=symbol,
                 order_id=order.id,
                 qty=qty,
-                stop_price=stop_price,
-                order_type=order.type.value
+                entry_price=entry_price,
+                order_type=order.type.value,
+                is_crypto=is_crypto
             )
             
             # Return parent order (trailing stop will be placed after fill)
@@ -239,8 +263,10 @@ class AlpacaClient:
         """
         Place standalone trailing stop (for existing position).
         
+        For crypto: Uses stop-loss limit order instead (trailing stops not supported)
+        
         Args:
-            symbol: Stock symbol
+            symbol: Stock or crypto symbol
             qty: Position quantity
             current_price: Current price (for reference)
             
@@ -248,17 +274,45 @@ class AlpacaClient:
             AlpacaOrder wrapper or None on error
         """
         try:
-            # Alpaca uses trail_percent (e.g., 10.0 for 10%)
+            # Detect if symbol is crypto
+            is_crypto = self.config.is_crypto_symbol(symbol)
+            
             trail_percent = self.config.stops.trailing_stop_pct
             
-            order_request = TrailingStopOrderRequest(
-                symbol=symbol,
-                qty=qty,
-                side=OrderSide.SELL,
-                time_in_force=TimeInForce.GTC,
-                trail_percent=trail_percent
-            )
+            if is_crypto:
+                # Crypto: Use stop-loss limit order (trailing stops not supported)
+                # Calculate stop price from current price
+                stop_price = self.round_to_tick(current_price * (1 - trail_percent / 100))
+                
+                # Use limit order slightly below stop price for better execution
+                limit_price = self.round_to_tick(stop_price * 0.99)  # 1% below stop
+                
+                order_request = LimitOrderRequest(
+                    symbol=symbol,
+                    qty=qty,
+                    side=OrderSide.SELL,
+                    time_in_force=TimeInForce.GTC,  # GTC for crypto (24/7)
+                    limit_price=stop_price  # Sell at stop price
+                )
+                
+                logger.info(
+                    "crypto_stop_loss_placed",
+                    symbol=symbol,
+                    qty=qty,
+                    stop_price=stop_price,
+                    note="Trailing stops not supported for crypto, using fixed stop-loss limit order"
+                )
+            else:
+                # Stocks: Use trailing stop (standard)
+                order_request = TrailingStopOrderRequest(
+                    symbol=symbol,
+                    qty=qty,
+                    side=OrderSide.SELL,
+                    time_in_force=TimeInForce.GTC,
+                    trail_percent=trail_percent
+                )
             
+            # Submit order
             order = self.trading_client.submit_order(order_request)
             wrapper = AlpacaOrder(order)
             
@@ -266,18 +320,21 @@ class AlpacaClient:
             self.tracked_orders[order.id] = wrapper
             
             logger.info(
-                "trailing_stop_placed",
+                "exit_order_placed",
                 symbol=symbol,
                 order_id=order.id,
                 qty=qty,
-                trail_percent=trail_percent,
+                trail_percent=trail_percent if not is_crypto else None,
+                stop_price=stop_price if is_crypto else None,
+                order_type=order.type.value,
+                is_crypto=is_crypto
             )
             
             return wrapper
             
         except Exception as e:
             logger.error(
-                "trailing_stop_placement_failed",
+                "exit_order_placement_failed",
                 symbol=symbol,
                 error=str(e),
             )
@@ -316,17 +373,21 @@ class AlpacaClient:
             for position in positions_list:
                 # Safely get unrealized P&L (attribute may vary by account type)
                 unrealized_pnl = 0.0
-                if hasattr(position, 'unrealized_pl') and position.unrealized_pl:
-                    unrealized_pnl = float(position.unrealized_pl)
-                elif hasattr(position, 'unrealized_plpc') and position.unrealized_plpc:
-                    unrealized_pnl = float(position.unrealized_plpc) * float(position.market_value)
+                try:
+                    if hasattr(position, 'unrealized_pl') and position.unrealized_pl is not None:
+                        unrealized_pnl = float(position.unrealized_pl)
+                    elif hasattr(position, 'unrealized_plpc') and position.unrealized_plpc is not None:
+                        market_val = float(position.market_value) if position.market_value is not None else 0.0
+                        unrealized_pnl = float(position.unrealized_plpc) * market_val
+                except (ValueError, TypeError) as e:
+                    logger.warning("unrealized_pnl_calculation_failed", symbol=position.symbol, error=str(e))
                 
                 positions[position.symbol] = {
-                    "quantity": float(position.qty),
-                    "avg_cost": float(position.avg_entry_price),
-                    "market_value": float(position.market_value),
+                    "quantity": float(position.qty) if position.qty is not None else 0.0,
+                    "avg_cost": float(position.avg_entry_price) if position.avg_entry_price is not None else 0.0,
+                    "market_value": float(position.market_value) if position.market_value is not None else 0.0,
                     "unrealized_pnl": unrealized_pnl,
-                    "current_price": float(position.current_price),
+                    "current_price": float(position.current_price) if position.current_price is not None else 0.0,
                 }
             
             return positions
@@ -459,14 +520,25 @@ class AlpacaClient:
             elif hasattr(account, 'unrealized_plpc'):
                 unrealized_pnl = float(account.unrealized_plpc)
             
+            # Safely calculate realized P&L
+            realized_pnl = 0.0
+            if hasattr(account, 'equity') and hasattr(account, 'last_equity'):
+                try:
+                    equity = float(account.equity) if account.equity is not None else 0.0
+                    last_equity = float(account.last_equity) if account.last_equity is not None else 0.0
+                    realized_pnl = equity - last_equity
+                except (ValueError, TypeError) as e:
+                    logger.warning("realized_pnl_calculation_failed", error=str(e))
+                    realized_pnl = 0.0
+            
             summary = {
-                'NetLiquidation': float(account.equity) if hasattr(account, 'equity') else 0.0,
-                'TotalCashValue': float(account.cash) if hasattr(account, 'cash') else 0.0,
-                'GrossPositionValue': float(account.long_market_value) if hasattr(account, 'long_market_value') else 0.0,
+                'NetLiquidation': float(account.equity) if hasattr(account, 'equity') and account.equity is not None else 0.0,
+                'TotalCashValue': float(account.cash) if hasattr(account, 'cash') and account.cash is not None else 0.0,
+                'GrossPositionValue': float(account.long_market_value) if hasattr(account, 'long_market_value') and account.long_market_value is not None else 0.0,
                 'UnrealizedPnL': unrealized_pnl,
-                'RealizedPnL': float(account.equity - account.last_equity) if hasattr(account, 'last_equity') else 0.0,
-                'AvailableFunds': float(account.cash) if hasattr(account, 'cash') else 0.0,
-                'BuyingPower': float(account.buying_power) if hasattr(account, 'buying_power') else 0.0,
+                'RealizedPnL': realized_pnl,
+                'AvailableFunds': float(account.cash) if hasattr(account, 'cash') and account.cash is not None else 0.0,
+                'BuyingPower': float(account.buying_power) if hasattr(account, 'buying_power') and account.buying_power is not None else 0.0,
             }
             
             logger.info("account_summary_fetched", summary=summary)

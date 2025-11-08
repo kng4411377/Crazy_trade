@@ -58,6 +58,13 @@ Complete documentation for the Crazy Trade Bot.
 - Configuration tips for different volatility levels
 - What's NOT available (MATIC, ADA, BNB, etc.)
 
+### **[CRYPTO_LIMITATIONS.md](CRYPTO_LIMITATIONS.md)** - Crypto Trading Limitations 🆕
+- Order type restrictions (no stop orders or trailing stops)
+- How the bot adapts for crypto trading
+- Fixed stop-loss vs trailing stops
+- Performance impact and workarounds
+- Recommended config adjustments for crypto
+
 ---
 
 ## 📖 Additional Resources
