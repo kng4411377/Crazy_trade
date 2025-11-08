@@ -126,7 +126,7 @@ class SymbolStateMachine:
                 self.db.upsert_symbol_state(
                     session,
                     self.symbol,
-                    last_parent_id=parent_order.order.id,
+                    last_parent_id=str(parent_order.order.id),  # Convert UUID to string
                     last_trail_id=None,  # Will be set after entry fills
                 )
                 
@@ -134,7 +134,7 @@ class SymbolStateMachine:
                 order = parent_order.order
                 self.db.add_order(
                     session,
-                    order_id=order.id,
+                    order_id=str(order.id),  # Convert UUID to string
                     symbol=self.symbol,
                     side="BUY",
                     order_type=order.type.value,
@@ -327,14 +327,14 @@ class SymbolStateMachine:
                 self.db.upsert_symbol_state(
                     session,
                     self.symbol,
-                    last_trail_id=order_wrapper.order.id,
+                    last_trail_id=str(order_wrapper.order.id),  # Convert UUID to string
                 )
                 
                 # Record order
                 order = order_wrapper.order
                 self.db.add_order(
                     session,
-                    order_id=order.id,
+                    order_id=str(order.id),  # Convert UUID to string
                     symbol=self.symbol,
                     side="SELL",
                     order_type=order.type.value,
@@ -351,7 +351,7 @@ class SymbolStateMachine:
                     event_type="trailing_stop_placed_after_entry",
                     symbol=self.symbol,
                     payload={
-                        "order_id": order.id,
+                        "order_id": str(order.id),  # Convert UUID to string
                         "qty": qty,
                     },
                 )

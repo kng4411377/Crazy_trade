@@ -20,8 +20,8 @@ class SymbolState(Base):
 
     symbol = Column(String, primary_key=True, index=True)
     cooldown_until_ts = Column(DateTime, nullable=True)
-    last_parent_id = Column(Integer, nullable=True)
-    last_trail_id = Column(Integer, nullable=True)
+    last_parent_id = Column(String, nullable=True)  # Changed to String for UUID support
+    last_trail_id = Column(String, nullable=True)   # Changed to String for UUID support
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
@@ -30,7 +30,7 @@ class OrderRecord(Base):
     __tablename__ = "orders"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    order_id = Column(Integer, unique=True, index=True)
+    order_id = Column(String, unique=True, index=True)  # Changed to String for UUID support
     symbol = Column(String, index=True, nullable=False)
     side = Column(String, nullable=False)  # BUY/SELL
     order_type = Column(String, nullable=False)  # STP, TRAIL, etc.
@@ -39,7 +39,7 @@ class OrderRecord(Base):
     stop_price = Column(Float, nullable=True)
     limit_price = Column(Float, nullable=True)
     trailing_pct = Column(Float, nullable=True)
-    parent_id = Column(Integer, nullable=True)
+    parent_id = Column(String, nullable=True)  # Changed to String for UUID support
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -53,7 +53,7 @@ class FillRecord(Base):
     side = Column(String, nullable=False)
     qty = Column(Float, nullable=False)
     price = Column(Float, nullable=False)
-    order_id = Column(Integer, index=True, nullable=False)
+    order_id = Column(String, index=True, nullable=False)  # Changed to String for UUID support
     ts = Column(DateTime, default=datetime.utcnow, index=True)
 
 

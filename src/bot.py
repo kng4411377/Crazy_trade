@@ -303,7 +303,7 @@ class TradingBot:
         
         order = order_wrapper.order
         side = order.side.value.upper()
-        order_id = order.id
+        order_id = str(order.id)  # Convert UUID to string
         
         logger.info(
             "fill_received",
@@ -356,7 +356,7 @@ class TradingBot:
     def _on_order_status(self, order_wrapper: AlpacaOrder):
         """Handle order status updates."""
         symbol = order_wrapper.contract.symbol
-        order_id = order_wrapper.order.id
+        order_id = str(order_wrapper.order.id)  # Convert UUID to string
         status = order_wrapper.orderStatus.status
         
         logger.debug(
