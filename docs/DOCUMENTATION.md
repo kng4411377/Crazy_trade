@@ -4,6 +4,16 @@ Complete documentation for the Crazy Trade Bot.
 
 ## 🚀 Getting Started
 
+### **[BOT_REFERENCE.md](BOT_REFERENCE.md)** - 🆕 **Complete Bot Reference**
+- Comprehensive guide to what the bot does
+- Full architecture explanation
+- Trading strategy deep-dive
+- Step-by-step trade lifecycle
+- All features and capabilities
+- Configuration details
+- API reference
+- Troubleshooting guide
+
 ### **[README.md](../README.md)** - Main Overview
 - What the bot does
 - Features and architecture
@@ -206,9 +216,10 @@ crazy_trade/
 
 **New Users:**
 1. Read [README.md](README.md) - Understand what the bot does
-2. Follow [QUICKSTART.md](QUICKSTART.md) - Get it running
-3. Review [SETUP_SECRETS.md](SETUP_SECRETS.md) - Secure your keys
-4. Read [API_GUIDE.md](API_GUIDE.md) - Learn monitoring
+2. Study [BOT_REFERENCE.md](BOT_REFERENCE.md) - **Complete reference guide** 🆕
+3. Follow [QUICKSTART.md](QUICKSTART.md) - Get it running
+4. Review [SETUP_SECRETS.md](SETUP_SECRETS.md) - Secure your keys
+5. Read [API_GUIDE.md](API_GUIDE.md) - Learn monitoring
 
 **Deploying to Server:**
 1. Complete "New Users" steps above

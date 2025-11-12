@@ -4,6 +4,9 @@ Welcome to the Crazy Trade Bot documentation! All documentation files have been 
 
 ## 📖 Documentation Files
 
+### Core Reference
+- **[BOT_REFERENCE.md](BOT_REFERENCE.md)** - 🆕 **Comprehensive bot reference guide** - What the bot does, how it works, complete architecture
+
 ### Getting Started
 - **[QUICKSTART.md](QUICKSTART.md)** - Quick start guide for beginners
 - **[SETUP_SECRETS.md](SETUP_SECRETS.md)** - How to securely set up API keys
@@ -33,9 +36,10 @@ Welcome to the Crazy Trade Bot documentation! All documentation files have been 
 
 ### For New Users:
 1. Start with [Main README](../README.md) - Understand what the bot does
-2. Follow [QUICKSTART.md](QUICKSTART.md) - Get up and running
-3. Read [SETUP_SECRETS.md](SETUP_SECRETS.md) - Secure your API keys
-4. Review [API_GUIDE.md](API_GUIDE.md) - Monitor your bot remotely
+2. Read [BOT_REFERENCE.md](BOT_REFERENCE.md) - **Deep dive into how everything works**
+3. Follow [QUICKSTART.md](QUICKSTART.md) - Get up and running
+4. Read [SETUP_SECRETS.md](SETUP_SECRETS.md) - Secure your API keys
+5. Review [API_GUIDE.md](API_GUIDE.md) - Monitor your bot remotely
 
 ### For Deployment:
 1. Complete the "New Users" path above first
