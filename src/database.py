@@ -152,8 +152,19 @@ class DatabaseManager:
             order.updated_at = datetime.utcnow()
             session.commit()
 
+    def fill_exists(self, session: Session, exec_id: str) -> bool:
+        """Check if a fill with the given exec_id already exists."""
+        return session.query(FillRecord).filter(FillRecord.exec_id == exec_id).first() is not None
+    
     def add_fill(self, session: Session, **kwargs) -> FillRecord:
-        """Add a fill record."""
+        """Add a fill record (if it doesn't already exist)."""
+        exec_id = kwargs.get('exec_id')
+        
+        # Check if fill already exists
+        if exec_id and self.fill_exists(session, exec_id):
+            logger.debug("fill_already_exists", exec_id=exec_id)
+            return None
+        
         fill = FillRecord(**kwargs)
         session.add(fill)
         session.commit()

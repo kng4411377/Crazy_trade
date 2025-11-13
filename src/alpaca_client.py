@@ -459,8 +459,9 @@ class AlpacaClient:
                 filter=GetOrdersRequest(status=QueryOrderStatus.CLOSED, limit=50)
             )
             
-            # Check for filled orders we're tracking
+            # Check all closed orders (not just tracked ones)
             for order in orders:
+                # Check if this is a tracked order with status change
                 if order.id in self.tracked_orders:
                     old_wrapper = self.tracked_orders[order.id]
                     old_status = old_wrapper.order.status
@@ -491,6 +492,36 @@ class AlpacaClient:
                         # Clean up filled/cancelled orders
                         if order.status.value in ['filled', 'canceled', 'expired', 'rejected']:
                             del self.tracked_orders[order.id]
+                
+                # Also process filled orders that weren't tracked (e.g., from before restart)
+                elif order.status.value in ['filled', 'partially_filled'] and order.filled_qty:
+                    # Check if we've already recorded this fill in the database
+                    # to avoid duplicate processing
+                    wrapper = AlpacaOrder(order)
+                    
+                    # Trigger callbacks for untracked fills
+                    if self.on_order_status_callback:
+                        self.on_order_status_callback(wrapper)
+                    
+                    if self.on_fill_callback:
+                        # Create a simple fill object
+                        fill = type('obj', (object,), {
+                            'execution': type('obj', (object,), {
+                                'shares': float(order.filled_qty),
+                                'price': float(order.filled_avg_price) if order.filled_avg_price else 0,
+                                'execId': order.id,
+                            })()
+                        })()
+                        self.on_fill_callback(wrapper, fill)
+                    
+                    logger.info(
+                        "untracked_fill_detected",
+                        symbol=order.symbol,
+                        order_id=str(order.id),
+                        status=order.status.value,
+                        qty=order.filled_qty,
+                        price=order.filled_avg_price
+                    )
             
         except Exception as e:
             logger.error("event_check_failed", error=str(e))

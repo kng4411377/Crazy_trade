@@ -299,7 +299,7 @@ class TradingBot:
     def _on_fill(self, order_wrapper: AlpacaOrder, fill):
         """Handle fill events."""
         symbol = order_wrapper.contract.symbol
-        exec_id = fill.execution.execId
+        exec_id = str(fill.execution.execId)  # Convert to string for consistency
         
         order = order_wrapper.order
         side = order.side.value.upper()
@@ -315,8 +315,13 @@ class TradingBot:
             exec_id=exec_id,
         )
         
-        # Record fill in database
+        # Record fill in database (will skip if duplicate)
         with self.db.get_session() as session:
+            # Check if fill already exists before processing
+            if self.db.fill_exists(session, exec_id):
+                logger.debug("fill_already_processed", exec_id=exec_id, symbol=symbol)
+                return
+            
             self.db.add_fill(
                 session,
                 exec_id=exec_id,
