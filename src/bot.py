@@ -37,6 +37,8 @@ class TradingBot:
             config.hours.calendar,
             config.hours.allow_pre_market,
             config.hours.allow_after_hours,
+            config.hours.skip_first_minutes,
+            config.hours.skip_last_minutes,
         )
         self.sizer = PositionSizer(config)
         
@@ -132,15 +134,16 @@ class TradingBot:
         
         while self.running:
             try:
-                # Check if we're in trading hours (for stocks)
-                in_rth = self.market_hours.is_regular_trading_hours()
+                # Check if we're in acceptable trading window (for stocks)
+                # This excludes first/last minutes if configured
+                in_trading_window = self.market_hours.is_in_trading_window()
                 has_crypto = len(self.config.crypto_watchlist) > 0
                 
-                # Process crypto always (24/7) or stocks during market hours
-                if in_rth or has_crypto:
-                    await self._process_trading_logic(in_rth=in_rth)
+                # Process crypto always (24/7) or stocks during trading window
+                if in_trading_window or has_crypto:
+                    await self._process_trading_logic(in_rth=in_trading_window)
                 else:
-                    logger.debug("outside_trading_hours_no_crypto")
+                    logger.debug("outside_trading_window_no_crypto")
                     # Keep connection alive even when market is closed
                     await self._keepalive_tick()
                     await asyncio.sleep(60)  # Check every minute when market is closed
@@ -173,6 +176,11 @@ class TradingBot:
         Args:
             in_rth: Whether we're in regular trading hours (affects stock trading)
         """
+        # Check daily drawdown limit (circuit breaker)
+        if not self._check_daily_drawdown_ok():
+            logger.warning("daily_drawdown_limit_breached_skipping_new_entries")
+            return
+        
         # Get current positions and account value
         positions = self.alpaca.get_positions()
         account_value = self.alpaca.get_account_value()
@@ -186,6 +194,9 @@ class TradingBot:
         exposure_metrics = self.sizer.get_current_exposure(position_values)
         logger.debug("exposure_metrics", **exposure_metrics)
         
+        # Check if we can add new positions
+        can_add_position = self._check_position_limit_ok(positions)
+        
         # Process each symbol
         for symbol, sm in self.state_machines.items():
             try:
@@ -193,6 +204,11 @@ class TradingBot:
                 is_crypto = self.config.is_crypto_symbol(symbol)
                 if not is_crypto and not in_rth:
                     logger.debug("skipping_stock_outside_rth", symbol=symbol)
+                    continue
+                
+                # Check if we're at position limit before allowing new entries
+                if not can_add_position and symbol not in positions:
+                    logger.debug("skipping_new_entry_at_position_limit", symbol=symbol)
                     continue
                 
                 await sm.process(position_values, account_value)
@@ -295,6 +311,91 @@ class TradingBot:
             
         except Exception as e:
             logger.error("failed_to_save_snapshot", error=str(e))
+
+    def _check_daily_drawdown_ok(self) -> bool:
+        """
+        Check if daily drawdown limits are within acceptable range.
+        
+        Circuit breaker: Stops new entries if daily loss exceeds threshold.
+        
+        Returns:
+            True if ok to trade, False if limit breached
+        """
+        # If no limits configured, always allow
+        if (self.config.risk.max_daily_loss_pct is None and 
+            self.config.risk.max_daily_loss_usd is None):
+            return True
+        
+        # Get today's P&L
+        try:
+            account_summary = self.performance.get_account_summary()
+            if not account_summary:
+                # Can't get account data, allow trading (fail open)
+                return True
+            
+            # Calculate today's P&L
+            # Note: This is a simplified version - you might want to track daily starting balance
+            daily_pnl = account_summary.get('DailyPnL', 0)  # If Alpaca provides this
+            # Fallback: use unrealized + realized PnL (approximate)
+            if daily_pnl == 0:
+                daily_pnl = (account_summary.get('UnrealizedPnL', 0) + 
+                            account_summary.get('RealizedPnL', 0))
+            
+            account_value = account_summary.get('NetLiquidation', 0)
+            
+            # Check percentage limit
+            if self.config.risk.max_daily_loss_pct is not None and account_value > 0:
+                daily_loss_pct = (daily_pnl / account_value) * 100
+                if daily_loss_pct < -self.config.risk.max_daily_loss_pct:
+                    logger.error(
+                        "daily_loss_pct_limit_breached",
+                        daily_loss_pct=daily_loss_pct,
+                        limit=self.config.risk.max_daily_loss_pct,
+                        daily_pnl=daily_pnl,
+                        alert="CIRCUIT BREAKER: Stopping new entries"
+                    )
+                    return False
+            
+            # Check dollar limit
+            if self.config.risk.max_daily_loss_usd is not None:
+                if daily_pnl < -self.config.risk.max_daily_loss_usd:
+                    logger.error(
+                        "daily_loss_usd_limit_breached",
+                        daily_pnl=daily_pnl,
+                        limit=self.config.risk.max_daily_loss_usd,
+                        alert="CIRCUIT BREAKER: Stopping new entries"
+                    )
+                    return False
+            
+            return True
+            
+        except Exception as e:
+            logger.error("failed_to_check_daily_drawdown", error=str(e))
+            return True  # Fail open - allow trading if can't check
+    
+    def _check_position_limit_ok(self, positions: dict) -> bool:
+        """
+        Check if we're within concurrent position limits.
+        
+        Args:
+            positions: Current positions dict
+            
+        Returns:
+            True if ok to add new position, False if limit reached
+        """
+        if self.config.risk.max_concurrent_positions is None:
+            return True
+        
+        current_count = len(positions)
+        if current_count >= self.config.risk.max_concurrent_positions:
+            logger.warning(
+                "max_concurrent_positions_reached",
+                current=current_count,
+                limit=self.config.risk.max_concurrent_positions
+            )
+            return False
+        
+        return True
 
     async def _place_trailing_stop_with_retry(self, symbol: str, qty: int, entry_price: float):
         """

@@ -14,7 +14,9 @@ class MarketHoursChecker:
 
     def __init__(self, calendar_name: str = "XNYS", 
                  allow_pre_market: bool = False,
-                 allow_after_hours: bool = False):
+                 allow_after_hours: bool = False,
+                 skip_first_minutes: int = 0,
+                 skip_last_minutes: int = 0):
         """
         Initialize market hours checker.
         
@@ -22,10 +24,14 @@ class MarketHoursChecker:
             calendar_name: Market calendar name (e.g., "XNYS" for NYSE)
             allow_pre_market: Whether to allow pre-market trading
             allow_after_hours: Whether to allow after-hours trading
+            skip_first_minutes: Skip first N minutes after open (avoid volatility)
+            skip_last_minutes: Skip last N minutes before close (avoid volatility)
         """
         self.calendar_name = calendar_name
         self.allow_pre_market = allow_pre_market
         self.allow_after_hours = allow_after_hours
+        self.skip_first_minutes = skip_first_minutes
+        self.skip_last_minutes = skip_last_minutes
         
         try:
             self.calendar = mcal.get_calendar(calendar_name)
@@ -217,4 +223,60 @@ class MarketHoursChecker:
         now = datetime.utcnow()
         next_close = self.next_market_close(now)
         return (next_close - pytz.utc.localize(now)).total_seconds()
+
+    def is_in_trading_window(self, dt: Optional[datetime] = None) -> bool:
+        """
+        Check if current time is in an acceptable trading window.
+        
+        Excludes:
+        - First N minutes after market open (high volatility)
+        - Last N minutes before market close (high volatility)
+        
+        Args:
+            dt: Datetime to check (defaults to now)
+            
+        Returns:
+            True if in trading window (not in skip periods)
+        """
+        if not self.is_regular_trading_hours(dt):
+            return False
+        
+        if self.skip_first_minutes == 0 and self.skip_last_minutes == 0:
+            return True  # No filtering needed
+        
+        if dt is None:
+            dt = datetime.utcnow()
+        
+        # Convert to Eastern time
+        if dt.tzinfo is None:
+            dt = pytz.utc.localize(dt)
+        dt_eastern = dt.astimezone(self.eastern)
+        
+        current_time = dt_eastern.time()
+        date = dt_eastern.date()
+        
+        # Calculate skip windows
+        market_open_dt = datetime.combine(date, self.rth_open)
+        market_close_dt = datetime.combine(date, self.rth_close)
+        
+        skip_open_until = (market_open_dt + timedelta(minutes=self.skip_first_minutes)).time()
+        skip_close_from = (market_close_dt - timedelta(minutes=self.skip_last_minutes)).time()
+        
+        # Check if we're in a skip window
+        in_open_skip = self.skip_first_minutes > 0 and current_time < skip_open_until
+        in_close_skip = self.skip_last_minutes > 0 and current_time >= skip_close_from
+        
+        if in_open_skip:
+            logger.debug("skipping_first_minutes", 
+                        current_time=str(current_time),
+                        skip_until=str(skip_open_until))
+            return False
+        
+        if in_close_skip:
+            logger.debug("skipping_last_minutes",
+                        current_time=str(current_time),
+                        skip_from=str(skip_close_from))
+            return False
+        
+        return True
 

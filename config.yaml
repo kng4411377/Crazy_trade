@@ -73,6 +73,8 @@ hours:
   calendar: "XNYS"
   allow_pre_market: false
   allow_after_hours: false
+  skip_first_minutes: 5       # Skip first 5 minutes after open (avoid volatility)
+  skip_last_minutes: 10       # Skip last 10 minutes before close (avoid volatility)
 
 cooldowns:
   after_stopout_minutes: 1440   # Wait at least 1 day (1440 min) before re-entering after stop-out
@@ -88,6 +90,9 @@ polling:
 risk:
   max_total_exposure_usd: 20000
   max_symbol_exposure_usd: 2000
+  max_daily_loss_pct: 3.0     # Circuit breaker: Stop trading if daily loss > 3%
+  max_daily_loss_usd: 500     # Circuit breaker: Stop trading if daily loss > $500
+  max_concurrent_positions: 5  # Max 5 positions at once
 
 persistence:
   db_url: "sqlite:///bot.db"

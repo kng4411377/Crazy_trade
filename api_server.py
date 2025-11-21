@@ -12,6 +12,7 @@ from datetime import datetime
 sys.path.insert(0, str(Path(__file__).parent))
 
 from flask import Flask, jsonify, request
+from datetime import timedelta
 from src.database import DatabaseManager, FillRecord, EventRecord, SymbolState, OrderRecord
 from src.performance import PerformanceTracker
 
@@ -42,6 +43,7 @@ def index():
         "endpoints": {
             "/health": "Health check",
             "/v1/api/tickle": "Keep-alive endpoint (POST)",
+            "/metrics": "Detailed performance metrics and statistics (NEW v1.2.0)",
             "/status": "Bot status and symbol states",
             "/performance": "Performance metrics and P&L",
             "/fills": "Recent fills (default 20)",
@@ -76,6 +78,82 @@ def health():
             "status": "unhealthy",
             "timestamp": datetime.utcnow().isoformat(),
             "error": str(e)
+        }), 500
+
+
+@app.route('/metrics')
+def metrics():
+    """
+    Detailed performance metrics endpoint.
+    
+    Returns comprehensive stats:
+    - Win rate, profit factor, average R:R
+    - Max drawdown, Sharpe ratio
+    - Trade counts, average duration
+    - Risk metrics
+    """
+    try:
+        # Get performance metrics
+        stats = tracker.get_statistics()
+        per_symbol = tracker.get_per_symbol_performance()
+        
+        # Calculate additional metrics
+        with db.get_session() as session:
+            # Total trades
+            total_fills = session.query(FillRecord).count()
+            total_orders = session.query(OrderRecord).count()
+            
+            # Recent activity (last 24 hours)
+            yesterday = datetime.utcnow() - timedelta(days=1)
+            recent_fills = session.query(FillRecord).filter(
+                FillRecord.ts >= yesterday
+            ).count()
+            recent_orders = session.query(OrderRecord).filter(
+                OrderRecord.created_at >= yesterday
+            ).count()
+            
+            # Symbols in cooldown
+            cooldown_symbols = session.query(SymbolState).filter(
+                SymbolState.cooldown_until_ts > datetime.utcnow()
+            ).count()
+            
+            # Active positions (approximate from recent buy fills without sell fills)
+            buy_fills = session.query(FillRecord).filter(
+                FillRecord.side == "BUY"
+            ).count()
+            sell_fills = session.query(FillRecord).filter(
+                FillRecord.side == "SELL"
+            ).count()
+            estimated_positions = max(0, buy_fills - sell_fills)
+        
+        return jsonify({
+            "timestamp": datetime.utcnow().isoformat(),
+            "statistics": stats,
+            "per_symbol_performance": per_symbol,
+            "activity": {
+                "total_trades": total_fills,
+                "total_orders": total_orders,
+                "recent_fills_24h": recent_fills,
+                "recent_orders_24h": recent_orders,
+                "symbols_in_cooldown": cooldown_symbols,
+                "estimated_open_positions": estimated_positions
+            },
+            "risk_metrics": {
+                "win_rate": stats.get("win_rate_pct", 0),
+                "profit_factor": stats.get("profit_factor", 0),
+                "max_drawdown_pct": stats.get("max_drawdown_pct", 0),
+                "sharpe_ratio": stats.get("sharpe_ratio", 0),
+                "avg_win": stats.get("avg_win", 0),
+                "avg_loss": stats.get("avg_loss", 0),
+                "largest_win": stats.get("largest_win", 0),
+                "largest_loss": stats.get("largest_loss", 0)
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
         }), 500
 
 

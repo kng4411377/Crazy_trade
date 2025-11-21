@@ -561,17 +561,22 @@ Contributions welcome! Please:
 4. Ensure all tests pass: `pytest`
 5. Submit a pull request
 
-## 🔄 Recent Updates (v1.1.0 - Nov 21, 2024)
+## 🔄 Recent Updates
 
-### Trailing Stop & Cooldown Fixes
+### v1.2.0 - Safety Features (Nov 21, 2024) 🛡️
 
-**Problem 1 Fixed:** Trailing stops not placed immediately  
-✅ **Solution:** Added retry logic (up to 3 attempts) to ensure trailing stops always get placed
+**Phase 1 Quick Wins Implemented:**
+- ✅ **Daily drawdown limit** - Circuit breaker stops trading if daily loss > 3% or $500
+- ✅ **Session time filters** - Skip first 5 min after open & last 10 min before close
+- ✅ **Position limits** - Max 5 concurrent positions
+- ✅ **Enhanced metrics** - New `/metrics` API endpoint
 
-**Problem 2 Fixed:** Cooldown too short after stop-outs  
-✅ **Solution:** Extended cooldown from 20 minutes to **1 day (1440 minutes)**
+### v1.1.0 - Trailing Stop & Cooldown Fixes
 
-📖 **See full details:** [docs/CHANGELOG.md](docs/CHANGELOG.md#110---2024-11-21)
+- ✅ Trailing stops with retry logic (up to 3 attempts)
+- ✅ Extended cooldown to 1 day after stop-outs
+
+📖 **See full details:** [docs/CHANGELOG.md](docs/CHANGELOG.md)
 
 ---
 

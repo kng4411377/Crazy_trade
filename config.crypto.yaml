@@ -60,6 +60,8 @@ hours:
   calendar: "XNYS"              # Not used for crypto, but required
   allow_pre_market: false
   allow_after_hours: false
+  skip_first_minutes: 0         # Crypto trades 24/7, no need to skip
+  skip_last_minutes: 0          # Crypto trades 24/7, no need to skip
 
 cooldowns:
   after_stopout_minutes: 1440   # Wait at least 1 day (1440 min) before re-entering after stop-out
@@ -75,6 +77,9 @@ polling:
 risk:
   max_total_exposure_usd: 10000
   max_symbol_exposure_usd: 1500
+  max_daily_loss_pct: 5.0       # Circuit breaker: Crypto is more volatile, allow 5%
+  max_daily_loss_usd: 500       # Circuit breaker: Stop if daily loss > $500
+  max_concurrent_positions: 8   # Allow more crypto positions (24/7 trading)
 
 persistence:
   db_url: "sqlite:///bot_crypto.db"  # Separate DB for crypto

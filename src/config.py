@@ -47,6 +47,8 @@ class HoursConfig(BaseModel):
     calendar: str = "XNYS"
     allow_pre_market: bool = False
     allow_after_hours: bool = False
+    skip_first_minutes: int = 5  # Skip first N minutes after open (avoid volatility)
+    skip_last_minutes: int = 10  # Skip last N minutes before close (avoid volatility)
 
 
 class CooldownsConfig(BaseModel):
@@ -66,6 +68,9 @@ class RiskConfig(BaseModel):
     """Risk management settings."""
     max_total_exposure_usd: float = 20000
     max_symbol_exposure_usd: float = 2000
+    max_daily_loss_pct: Optional[float] = None  # Stop trading if daily loss exceeds this %
+    max_daily_loss_usd: Optional[float] = None  # Stop trading if daily loss exceeds this $
+    max_concurrent_positions: Optional[int] = None  # Max number of simultaneous positions
 
 
 class PersistenceConfig(BaseModel):

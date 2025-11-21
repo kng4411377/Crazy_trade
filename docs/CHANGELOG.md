@@ -4,6 +4,216 @@ All notable changes to the Crazy Trade Bot project with detailed technical infor
 
 ---
 
+## [1.2.0] - 2024-11-21
+
+### 🛡️ Safety Features Added (Phase 1 - Quick Wins)
+
+Implemented 3 critical safety features from the [Enhancement Roadmap](ENHANCEMENTS_ROADMAP.md):
+
+---
+
+#### 1. Daily Drawdown Circuit Breaker
+
+**Feature:** Automatic halt of new entries when daily loss limits are breached.
+
+**Configuration:**
+```yaml
+risk:
+  max_daily_loss_pct: 3.0     # Stop trading if daily loss > 3%
+  max_daily_loss_usd: 500     # Stop trading if daily loss > $500
+```
+
+**How It Works:**
+- Checks daily P&L before each new entry
+- If daily loss exceeds threshold → stops all new entries
+- Existing positions continue to be managed
+- Resets next trading day
+
+**Benefits:**
+- ✅ Prevents cascading losses on bad days
+- ✅ Capital preservation
+- ✅ Emotional discipline enforced
+
+**Code Changes:**
+- `src/config.py`: Added `max_daily_loss_pct` and `max_daily_loss_usd` to `RiskConfig`
+- `src/bot.py`: Added `_check_daily_drawdown_ok()` method
+- `src/bot.py`: Circuit breaker check in `_process_trading_logic()`
+
+**Example Log:**
+```json
+{
+  "event": "daily_loss_pct_limit_breached",
+  "daily_loss_pct": -3.2,
+  "limit": 3.0,
+  "alert": "CIRCUIT BREAKER: Stopping new entries"
+}
+```
+
+---
+
+#### 2. Session Time Filters
+
+**Feature:** Skip first/last minutes of trading day to avoid high volatility periods.
+
+**Configuration:**
+```yaml
+hours:
+  skip_first_minutes: 5       # Skip first 5 minutes after open
+  skip_last_minutes: 10       # Skip last 10 minutes before close
+```
+
+**How It Works:**
+- Skips first 5 minutes after market open (9:30-9:35 AM ET)
+- Skips last 10 minutes before close (3:50-4:00 PM ET)
+- Reduces exposure to opening/closing volatility and slippage
+- Crypto trading unaffected (24/7)
+
+**Benefits:**
+- ✅ Avoids open/close volatility
+- ✅ Better execution quality
+- ✅ Reduced slippage
+
+**Code Changes:**
+- `src/config.py`: Added `skip_first_minutes` and `skip_last_minutes` to `HoursConfig`
+- `src/market_hours.py`: Added `is_in_trading_window()` method
+- `src/bot.py`: Uses `is_in_trading_window()` instead of `is_regular_trading_hours()`
+
+---
+
+#### 3. Concurrent Position Limit
+
+**Feature:** Maximum number of simultaneous open positions.
+
+**Configuration:**
+```yaml
+risk:
+  max_concurrent_positions: 5   # Max 5 positions at once
+```
+
+**How It Works:**
+- Counts current open positions
+- If at limit → skips new entry signals
+- Allows existing positions to continue
+- Opens up when positions close
+
+**Benefits:**
+- ✅ Limits portfolio concentration
+- ✅ Better risk management
+- ✅ Easier to monitor/manage
+
+**Code Changes:**
+- `src/config.py`: Added `max_concurrent_positions` to `RiskConfig`
+- `src/bot.py`: Added `_check_position_limit_ok()` method
+- `src/bot.py`: Position limit check before processing symbols
+
+---
+
+#### 4. Enhanced Metrics API
+
+**Feature:** New `/metrics` endpoint with detailed performance statistics.
+
+**Access:**
+```bash
+curl http://localhost:8080/metrics | jq .
+```
+
+**Returns:**
+- Win rate, profit factor, Sharpe ratio
+- Max drawdown, average R:R
+- Trade counts, activity metrics
+- Symbols in cooldown
+- Estimated open positions
+- Risk metrics
+
+**Benefits:**
+- ✅ Better visibility into performance
+- ✅ Real-time monitoring
+- ✅ Data-driven optimization
+
+**Code Changes:**
+- `api_server.py`: Added `/metrics` endpoint
+- Returns comprehensive statistics from performance tracker
+- Includes 24-hour activity metrics
+
+---
+
+### 📝 Files Modified
+
+**Code:**
+- `src/config.py` - Added new config options for safety features
+- `src/market_hours.py` - Added `is_in_trading_window()` method
+- `src/bot.py` - Added circuit breaker and position limit checks
+- `api_server.py` - Added `/metrics` endpoint
+
+**Config:**
+- `config.yaml` - Added risk limits and session filters
+- `config.crypto.yaml` - Added risk limits (adjusted for crypto volatility)
+
+**Documentation:**
+- `docs/ENHANCEMENTS_ROADMAP.md` - Comprehensive enhancement plan (NEW)
+
+---
+
+### 🔄 Deployment
+
+**No database changes required** - just restart the bot:
+
+```bash
+# Pull updates
+git pull
+
+# Restart bot
+./run.sh
+```
+
+**Verify it's working:**
+```bash
+# Check metrics endpoint
+curl http://localhost:8080/metrics | jq .
+
+# Check logs for circuit breaker
+grep "circuit_breaker\|daily_loss" bot.log | jq .
+
+# Check session filtering
+grep "skipping_first_minutes\|skipping_last_minutes" bot.log | jq .
+```
+
+---
+
+### ⚙️ Default Settings
+
+**Stock Trading (`config.yaml`):**
+- Daily loss limit: 3% or $500
+- Skip first 5 minutes after open
+- Skip last 10 minutes before close
+- Max 5 concurrent positions
+
+**Crypto Trading (`config.crypto.yaml`):**
+- Daily loss limit: 5% or $500 (higher volatility tolerance)
+- No session filters (24/7 trading)
+- Max 8 concurrent positions
+
+**Customize:**
+Edit `config.yaml` or `config.crypto.yaml` to adjust limits.
+
+---
+
+### 📊 What's Next?
+
+This is **Phase 1** of the [Enhancement Roadmap](ENHANCEMENTS_ROADMAP.md).
+
+**Coming in future releases:**
+- Volume filters (Phase 2)
+- ATR-based entry scaling (Phase 2)
+- Fixed-risk stop layer (Phase 3)
+- Take-profit brackets (Phase 3)
+- Correlation guard (Phase 4)
+- Alert webhooks (Phase 5)
+
+See [ENHANCEMENTS_ROADMAP.md](ENHANCEMENTS_ROADMAP.md) for the complete plan.
+
+---
+
 ## [1.1.0] - 2024-11-21
 
 ### 🔧 Trailing Stop Reliability Fix
@@ -439,6 +649,7 @@ Cooldown expires → Back to NO_POSITION
 
 | Version | Date | Description |
 |---------|------|-------------|
+| 1.2.0 | 2024-11-21 | Safety features: Daily drawdown limit, session filters, position limits |
 | 1.1.0 | 2024-11-21 | Trailing stop reliability + extended cooldown |
 | 1.0.1 | 2024-11-20 | Fill synchronization fix |
 | 1.0.0 | 2024-11-06 | Alpaca platform migration (from IBKR) |
@@ -446,6 +657,12 @@ Cooldown expires → Back to NO_POSITION
 ---
 
 ## Upgrading
+
+### To v1.2.0 (from v1.1.x)
+```bash
+git pull
+./run.sh  # New safety features auto-enabled
+```
 
 ### To v1.1.0 (from v1.0.x)
 ```bash
