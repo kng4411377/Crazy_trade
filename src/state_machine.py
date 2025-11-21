@@ -260,16 +260,26 @@ class SymbolStateMachine:
             state = self.db.get_symbol_state(session, self.symbol)
             if state and state.cooldown_until_ts:
                 remaining = (state.cooldown_until_ts - datetime.utcnow()).total_seconds()
+                remaining_minutes = remaining / 60
+                remaining_hours = remaining_minutes / 60
+                
                 logger.debug(
                     "in_cooldown",
                     symbol=self.symbol,
                     remaining_seconds=int(remaining),
+                    remaining_minutes=round(remaining_minutes, 1),
+                    remaining_hours=round(remaining_hours, 1),
+                    cooldown_expires_at=state.cooldown_until_ts.isoformat(),
                 )
 
     def on_stop_out(self):
         """Handle stop-out event - enter cooldown period."""
         cooldown_minutes = self.config.cooldowns.after_stopout_minutes
         cooldown_until = datetime.utcnow() + timedelta(minutes=cooldown_minutes)
+        
+        # Calculate human-readable cooldown duration
+        cooldown_hours = cooldown_minutes / 60
+        cooldown_days = cooldown_hours / 24
         
         with self.db.get_session() as session:
             self.db.upsert_symbol_state(
@@ -283,6 +293,8 @@ class SymbolStateMachine:
                 symbol=self.symbol,
                 payload={
                     "cooldown_minutes": cooldown_minutes,
+                    "cooldown_hours": cooldown_hours,
+                    "cooldown_days": cooldown_days,
                     "cooldown_until": cooldown_until.isoformat(),
                 },
             )
@@ -291,6 +303,9 @@ class SymbolStateMachine:
             "stopout_cooldown_started",
             symbol=self.symbol,
             cooldown_minutes=cooldown_minutes,
+            cooldown_hours=round(cooldown_hours, 1),
+            cooldown_days=round(cooldown_days, 1),
+            cooldown_until=cooldown_until.isoformat(),
         )
 
     async def cancel_unfilled_entries(self):
@@ -312,12 +327,15 @@ class SymbolStateMachine:
                     )
                 logger.info("entry_cancelled_eod", symbol=self.symbol, order_id=str(order_wrapper.order.id))
 
-    async def place_trailing_stop_after_entry(self, qty: int, entry_price: float):
+    async def place_trailing_stop_after_entry(self, qty: int, entry_price: float) -> bool:
         """
         Place trailing stop after entry order fills.
         Called by bot's fill callback for BUY fills.
+        
+        Returns:
+            True if successful, False otherwise
         """
-        logger.info("placing_trailing_stop_after_entry", symbol=self.symbol, qty=qty)
+        logger.info("placing_trailing_stop_after_entry", symbol=self.symbol, qty=qty, entry_price=entry_price)
         
         order_wrapper = await self.alpaca.place_trailing_stop(self.symbol, qty, entry_price)
         
@@ -355,4 +373,10 @@ class SymbolStateMachine:
                         "qty": qty,
                     },
                 )
+            
+            logger.info("trailing_stop_placed_successfully", symbol=self.symbol, order_id=str(order_wrapper.order.id))
+            return True
+        else:
+            logger.error("trailing_stop_placement_failed", symbol=self.symbol, qty=qty)
+            return False
 

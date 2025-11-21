@@ -561,6 +561,20 @@ Contributions welcome! Please:
 4. Ensure all tests pass: `pytest`
 5. Submit a pull request
 
+## 🔄 Recent Updates (v1.1.0 - Nov 21, 2024)
+
+### Trailing Stop & Cooldown Fixes
+
+**Problem 1 Fixed:** Trailing stops not placed immediately  
+✅ **Solution:** Added retry logic (up to 3 attempts) to ensure trailing stops always get placed
+
+**Problem 2 Fixed:** Cooldown too short after stop-outs  
+✅ **Solution:** Extended cooldown from 20 minutes to **1 day (1440 minutes)**
+
+📖 **See full details:** [docs/CHANGELOG.md](docs/CHANGELOG.md#110---2024-11-21)
+
+---
+
 ## 📚 Documentation
 
 All documentation is organized in the `/docs` directory:

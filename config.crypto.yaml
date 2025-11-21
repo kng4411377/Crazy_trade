@@ -62,7 +62,9 @@ hours:
   allow_after_hours: false
 
 cooldowns:
-  after_stopout_minutes: 30     # Longer cooldown for crypto
+  after_stopout_minutes: 1440   # Wait at least 1 day (1440 min) before re-entering after stop-out
+                                 # Prevents revenge trading and overtrading
+                                 # Even for crypto, wait a full day after stop-out
 
 polling:
   price_seconds: 10

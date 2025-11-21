@@ -296,6 +296,88 @@ class TradingBot:
         except Exception as e:
             logger.error("failed_to_save_snapshot", error=str(e))
 
+    async def _place_trailing_stop_with_retry(self, symbol: str, qty: int, entry_price: float):
+        """
+        Place trailing stop with retry logic to ensure it gets placed.
+        
+        This is critical - if the trailing stop doesn't get placed, the position has no protection!
+        
+        Args:
+            symbol: Symbol to place trailing stop for
+            qty: Position quantity
+            entry_price: Entry fill price
+        """
+        max_retries = 3
+        retry_delay = 2  # seconds
+        
+        for attempt in range(1, max_retries + 1):
+            try:
+                logger.info(
+                    "placing_trailing_stop_attempt",
+                    symbol=symbol,
+                    qty=qty,
+                    attempt=attempt,
+                    max_retries=max_retries
+                )
+                
+                # Place the trailing stop
+                success = await self.state_machines[symbol].place_trailing_stop_after_entry(qty, entry_price)
+                
+                if success is not False:  # None or True means success
+                    logger.info(
+                        "trailing_stop_placed_successfully",
+                        symbol=symbol,
+                        qty=qty,
+                        attempt=attempt
+                    )
+                    return True
+                else:
+                    logger.warning(
+                        "trailing_stop_placement_returned_false",
+                        symbol=symbol,
+                        attempt=attempt
+                    )
+                    
+            except Exception as e:
+                logger.error(
+                    "trailing_stop_placement_attempt_failed",
+                    symbol=symbol,
+                    qty=qty,
+                    attempt=attempt,
+                    error=str(e),
+                    exc_info=True
+                )
+            
+            # Wait before retry (unless it's the last attempt)
+            if attempt < max_retries:
+                logger.info("waiting_before_retry", symbol=symbol, delay_seconds=retry_delay)
+                await asyncio.sleep(retry_delay)
+        
+        # All retries failed - log critical error
+        logger.critical(
+            "trailing_stop_placement_failed_all_retries",
+            symbol=symbol,
+            qty=qty,
+            max_retries=max_retries,
+            alert="POSITION WITHOUT PROTECTION!"
+        )
+        
+        # Record critical event
+        with self.db.get_session() as session:
+            self.db.add_event(
+                session,
+                event_type="trailing_stop_placement_failed",
+                symbol=symbol,
+                payload={
+                    "qty": qty,
+                    "entry_price": entry_price,
+                    "max_retries": max_retries,
+                    "alert": "Position opened without trailing stop protection!"
+                }
+            )
+        
+        return False
+
     def _on_fill(self, order_wrapper: AlpacaOrder, fill):
         """Handle fill events."""
         symbol = order_wrapper.contract.symbol
@@ -351,15 +433,25 @@ class TradingBot:
             if symbol in self.state_machines:
                 self.state_machines[symbol].on_stop_out()
         
-        # If this is a BUY fill from a tracked order, place trailing stop
+        # If this is a BUY fill from a tracked order, place trailing stop IMMEDIATELY
         # Skip for untracked/historical fills (they already have trailing stops or were stopped out)
         if side == "BUY" and symbol in self.state_machines:
             is_tracked = getattr(order_wrapper, 'is_tracked', True)
             if is_tracked:
-                asyncio.create_task(self.state_machines[symbol].place_trailing_stop_after_entry(
-                    int(fill.execution.shares),
-                    fill.execution.price
-                ))
+                # IMPORTANT: Place trailing stop immediately (synchronously)
+                # Don't use create_task to avoid delays/failures going unnoticed
+                try:
+                    # Schedule immediate placement (will run on next event loop iteration)
+                    asyncio.ensure_future(
+                        self._place_trailing_stop_with_retry(
+                            symbol, 
+                            int(fill.execution.shares),
+                            fill.execution.price
+                        )
+                    )
+                    logger.info("trailing_stop_placement_scheduled", symbol=symbol)
+                except Exception as e:
+                    logger.error("failed_to_schedule_trailing_stop", symbol=symbol, error=str(e))
             else:
                 logger.debug("skipping_trailing_stop_for_historical_fill", symbol=symbol, order_id=order_id)
 

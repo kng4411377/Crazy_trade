@@ -34,11 +34,11 @@ watchlist:
 
 # Crypto watchlist (trades 24/7)
 # Alpaca format: SYMBOL or SYMBOL/USD (USD will be added automatically)
-crypto_watchlist:
-  - "BTC/USD"     # Bitcoin (most liquid)
-  - "ETH/USD"     # Ethereum (most liquid)
-  - "DOGE/USD"    # Dogecoin (high volatility! ✅ supported)
-  - "SHIB/USD"    # Shiba Inu (high volatility! ✅ supported)
+# crypto_watchlist:
+#   - "BTC/USD"     # Bitcoin (most liquid)
+#   - "ETH/USD"     # Ethereum (most liquid)
+#   - "DOGE/USD"    # Dogecoin (high volatility! ✅ supported)
+#   - "SHIB/USD"    # Shiba Inu (high volatility! ✅ supported)
   # Other top cryptos supported on Alpaca:
   # - "SOL/USD"   # Solana
   # - "LINK/USD"  # Chainlink
@@ -53,7 +53,7 @@ allocation:
   per_symbol_usd: 1000         # default per-symbol budget
   per_symbol_override: {}       # e.g., {"TSLA": 1500}
   min_cash_reserve_percent: 10
-  allow_fractional: true       # MUST be true for crypto! Set to true if trading crypto_watchlist
+  allow_fractional: false       # MUST be true for crypto! Set to true if trading crypto_watchlist
 
 entries:
   type: "buy_stop"              # "buy_stop" | "buy_stop_limit"
@@ -75,7 +75,9 @@ hours:
   allow_after_hours: false
 
 cooldowns:
-  after_stopout_minutes: 20     # 15–30 suggested
+  after_stopout_minutes: 1440   # Wait at least 1 day (1440 min) before re-entering after stop-out
+                                 # Prevents revenge trading and overtrading
+                                 # Old default was 20 minutes (too short)
 
 polling:
   price_seconds: 10

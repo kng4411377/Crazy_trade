@@ -36,13 +36,13 @@ sqlite3 bot.db "UPDATE state SET cooldown_until_ts = NULL;"
 
 | What You Need | Where to Find It |
 |---------------|------------------|
-| **All Documentation** | `docs/INDEX.md` |
-| **Getting Started** | `docs/QUICKSTART.md` |
-| **Reset Guide** | `docs/RESET_GUIDE.md` |
-| **Bot Features** | `docs/BOT_REFERENCE.md` |
-| **API Monitoring** | `docs/API_GUIDE.md` |
-| **Crypto Trading** | `docs/CRYPTO_GUIDE.md` |
-| **Deployment** | `docs/UBUNTU_DEPLOYMENT.md` |
+| **All Documentation** | [INDEX.md](INDEX.md) |
+| **Getting Started** | [QUICKSTART.md](QUICKSTART.md) |
+| **Reset Guide** | [RESET_GUIDE.md](RESET_GUIDE.md) |
+| **Bot Features** | [BOT_REFERENCE.md](BOT_REFERENCE.md) |
+| **API Monitoring** | [API_GUIDE.md](API_GUIDE.md) |
+| **Crypto Trading** | [CRYPTO_GUIDE.md](CRYPTO_GUIDE.md) |
+| **Deployment** | [UBUNTU_DEPLOYMENT.md](UBUNTU_DEPLOYMENT.md) |
 
 ---
 
@@ -131,7 +131,8 @@ open docs/INDEX.md   # Opens the documentation index
 
 ## 📖 More Help
 
-- **Detailed reset guide**: `docs/RESET_GUIDE.md`
-- **All documentation**: `docs/INDEX.md`
-- **Organization summary**: `ORGANIZATION_SUMMARY.md`
+- **Detailed reset guide**: [RESET_GUIDE.md](RESET_GUIDE.md)
+- **All documentation**: [INDEX.md](INDEX.md)
+- **Organization summary**: [ORGANIZATION_SUMMARY.md](ORGANIZATION_SUMMARY.md)
+- **Main README**: [../README.md](../README.md)
 
