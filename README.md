@@ -561,13 +561,40 @@ Contributions welcome! Please:
 4. Ensure all tests pass: `pytest`
 5. Submit a pull request
 
+## 📚 Documentation
+
+All documentation is organized in the `/docs` directory:
+
+### Essential Guides
+- **[Quick Start Guide](docs/QUICKSTART.md)** - Get started in 5 minutes
+- **[Bot Reference](docs/BOT_REFERENCE.md)** - Complete bot functionality
+- **[API Guide](docs/API_GUIDE.md)** - REST API for remote monitoring
+- **[Reset Guide](docs/RESET_GUIDE.md)** - How to reset transactions and start over
+
+### Crypto Trading
+- **[Crypto Guide](docs/CRYPTO_GUIDE.md)** - Complete crypto trading setup
+- **[Crypto Symbols](docs/CRYPTO_SYMBOLS.md)** - Supported cryptocurrency pairs
+- **[Crypto Limitations](docs/CRYPTO_LIMITATIONS.md)** - Known limitations
+
+### Deployment
+- **[Ubuntu Deployment](docs/UBUNTU_DEPLOYMENT.md)** - Deploy to Ubuntu server
+- **[Deploy to Server](docs/DEPLOY_TO_SERVER.md)** - General server deployment
+
+### Technical
+- **[Documentation Index](docs/INDEX.md)** - Complete documentation index
+- **[Architecture](docs/DOCUMENTATION.md)** - Technical architecture details
+- **[Changelog](docs/CHANGELOG.md)** - Version history
+
+See **[docs/INDEX.md](docs/INDEX.md)** for the complete documentation index.
+
 ## 📞 Support
 
 For issues:
 1. Check logs: `tail -f bot.log | jq .`
 2. Review database: `sqlite3 bot.db`
-3. Consult IBKR API docs: https://interactivebrokers.github.io/tws-api/
-4. File an issue with logs and config (redact sensitive data)
+3. See troubleshooting in [docs/BOT_REFERENCE.md](docs/BOT_REFERENCE.md)
+4. Check recent fixes in [docs/CHANGELOG.md](docs/CHANGELOG.md)
+5. File an issue with logs and config (redact sensitive data)
 
 ---
 

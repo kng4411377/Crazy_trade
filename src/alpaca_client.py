@@ -35,10 +35,11 @@ logger = structlog.get_logger()
 class AlpacaOrder:
     """Wrapper for Alpaca order to provide consistent interface."""
     
-    def __init__(self, alpaca_order):
+    def __init__(self, alpaca_order, is_tracked=True):
         self.order = alpaca_order
         self.contract = type('obj', (object,), {'symbol': alpaca_order.symbol})()
         self.orderStatus = type('obj', (object,), {'status': alpaca_order.status.value})()
+        self.is_tracked = is_tracked  # Flag to indicate if this was a tracked order
 
 
 class AlpacaClient:
@@ -60,6 +61,9 @@ class AlpacaClient:
         # Track orders for event handling
         self.tracked_orders: Dict[str, AlpacaOrder] = {}
         self.last_order_check = datetime.min
+        
+        # Track processed fills to avoid duplicates
+        self.processed_fills: set = set()
         
         logger.info("alpaca_client_initialized")
 
@@ -495,9 +499,16 @@ class AlpacaClient:
                 
                 # Also process filled orders that weren't tracked (e.g., from before restart)
                 elif order.status.value in ['filled', 'partially_filled'] and order.filled_qty:
-                    # Check if we've already recorded this fill in the database
-                    # to avoid duplicate processing
-                    wrapper = AlpacaOrder(order)
+                    # Check if we've already processed this fill
+                    exec_id = str(order.id)
+                    if exec_id in self.processed_fills:
+                        continue  # Skip already processed fills
+                    
+                    # Mark as processed
+                    self.processed_fills.add(exec_id)
+                    
+                    # Create wrapper with is_tracked=False to prevent trailing stop placement
+                    wrapper = AlpacaOrder(order, is_tracked=False)
                     
                     # Trigger callbacks for untracked fills
                     if self.on_order_status_callback:

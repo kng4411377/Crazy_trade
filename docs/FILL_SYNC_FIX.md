@@ -24,7 +24,7 @@ This meant:
 
 ## Solution
 
-The fix has **3 parts**:
+The fix has **5 parts**:
 
 ### 1. Detect Untracked Fills (`alpaca_client.py`)
 
@@ -65,6 +65,36 @@ This prevents:
 - ❌ Duplicate database entries
 - ❌ Multiple trailing stop orders for the same entry
 - ❌ Incorrect cooldown triggers
+
+### 4. Track Processed Fills in Memory (`alpaca_client.py`)
+
+Added `processed_fills` set to track which fills have already been processed:
+
+```python
+self.processed_fills: set = set()  # In __init__
+
+# In check_for_events():
+if exec_id in self.processed_fills:
+    continue  # Skip already processed fills
+self.processed_fills.add(exec_id)
+```
+
+This prevents the same fill from triggering callbacks repeatedly on every polling cycle.
+
+### 5. Distinguish Historical vs New Fills (`alpaca_client.py` + `bot.py`)
+
+Added `is_tracked` flag to `AlpacaOrder` wrapper:
+
+```python
+class AlpacaOrder:
+    def __init__(self, alpaca_order, is_tracked=True):
+        # ... 
+        self.is_tracked = is_tracked
+```
+
+Historical/untracked fills are marked with `is_tracked=False`, which prevents:
+- ❌ Attempting to place trailing stops for old positions (which already have them)
+- ❌ "Insufficient qty" errors from duplicate trailing stop attempts
 
 ## What Happens Now
 
@@ -136,9 +166,9 @@ You can verify the fix is working by:
 
 ## Files Modified
 
-- `src/alpaca_client.py` - Enhanced `check_for_events()` to process all fills
+- `src/alpaca_client.py` - Enhanced `check_for_events()` to process all fills, added duplicate tracking, added `is_tracked` flag
 - `src/database.py` - Added `fill_exists()` and duplicate checking to `add_fill()`
-- `src/bot.py` - Added duplicate check before processing fills
+- `src/bot.py` - Added duplicate check before processing fills, skip trailing stops for historical fills
 
 ## Backward Compatibility
 

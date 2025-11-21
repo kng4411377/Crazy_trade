@@ -351,12 +351,17 @@ class TradingBot:
             if symbol in self.state_machines:
                 self.state_machines[symbol].on_stop_out()
         
-        # If this is a BUY fill, place trailing stop
+        # If this is a BUY fill from a tracked order, place trailing stop
+        # Skip for untracked/historical fills (they already have trailing stops or were stopped out)
         if side == "BUY" and symbol in self.state_machines:
-            asyncio.create_task(self.state_machines[symbol].place_trailing_stop_after_entry(
-                int(fill.execution.shares),
-                fill.execution.price
-            ))
+            is_tracked = getattr(order_wrapper, 'is_tracked', True)
+            if is_tracked:
+                asyncio.create_task(self.state_machines[symbol].place_trailing_stop_after_entry(
+                    int(fill.execution.shares),
+                    fill.execution.price
+                ))
+            else:
+                logger.debug("skipping_trailing_stop_for_historical_fill", symbol=symbol, order_id=order_id)
 
     def _on_order_status(self, order_wrapper: AlpacaOrder):
         """Handle order status updates."""
