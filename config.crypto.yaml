@@ -46,7 +46,9 @@ entries:
   type: "buy_stop"
   buy_stop_pct_above_last: 3.0  # Tighter entry (crypto moves fast)
   stop_limit_max_slip_pct: 1.0
-  tif: "GTC"                    # Good Till Cancel (no market close)
+  tif: "GTC"                    # Time-in-force: "GTC" (good till cancelled) for 24/7 crypto trading
+                                 # GTC keeps orders active until filled or manually cancelled
+                                 # (crypto has no market close, so GTC is typical)
   cancel_at_close: false        # No market close for crypto
   rearm_next_session: false     # Always active
 

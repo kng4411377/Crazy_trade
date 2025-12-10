@@ -59,7 +59,9 @@ entries:
   type: "buy_stop"              # "buy_stop" | "buy_stop_limit"
   buy_stop_pct_above_last: 5.0
   stop_limit_max_slip_pct: 1.0  # only used if type == buy_stop_limit
-  tif: "DAY"
+  tif: "DAY"                    # Time-in-force: "DAY" (cancel at close) | "GTC" (good till cancelled)
+                                 # "DAY" is typical for stocks (auto-cancels unfilled orders at market close)
+                                 # "GTC" keeps orders active until filled or manually cancelled
   cancel_at_close: true
   rearm_next_session: true
 
@@ -67,7 +69,9 @@ stops:
   trailing_stop_pct: 10.0
   use_trailing_limit: false     # if true, convert to TRAIL LIMIT with limit offset
   trail_limit_offset_pct: 0.2   # if above is true
-  tif: "GTC"
+  tif: "GTC"                    # Time-in-force: "GTC" (good till cancelled) | "DAY" (cancel at close)
+                                 # "GTC" is typical for trailing stops (stays active after entry fills)
+                                 # Use "DAY" if you want stops to cancel at market close
 
 hours:
   calendar: "XNYS"

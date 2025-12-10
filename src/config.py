@@ -29,7 +29,10 @@ class EntriesConfig(BaseModel):
     type: Literal["buy_stop", "buy_stop_limit"] = "buy_stop"
     buy_stop_pct_above_last: float = 5.0
     stop_limit_max_slip_pct: float = 1.0
-    tif: str = "DAY"
+    tif: str = Field(
+        default="DAY",
+        description="Time-in-force: DAY (cancel at close), GTC (good till cancelled), IOC, FOK, etc."
+    )
     cancel_at_close: bool = True
     rearm_next_session: bool = True
 
@@ -39,7 +42,10 @@ class StopsConfig(BaseModel):
     trailing_stop_pct: float = 10.0
     use_trailing_limit: bool = False
     trail_limit_offset_pct: float = 0.2
-    tif: str = "GTC"
+    tif: str = Field(
+        default="GTC",
+        description="Time-in-force: GTC (good till cancelled), DAY (cancel at close), etc."
+    )
 
 
 class HoursConfig(BaseModel):

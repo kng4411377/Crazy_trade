@@ -152,6 +152,37 @@ class AlpacaClient:
             logger.debug("cannot_fetch_price", symbol=symbol)
             return None
 
+    def _get_time_in_force(self, tif_string: str) -> TimeInForce:
+        """
+        Convert time-in-force string to TimeInForce enum.
+        
+        Args:
+            tif_string: Time in force string (e.g., "DAY", "GTC", "IOC", "FOK")
+            
+        Returns:
+            TimeInForce enum value
+        """
+        tif_map = {
+            "DAY": TimeInForce.DAY,
+            "GTC": TimeInForce.GTC,
+            "IOC": TimeInForce.IOC,
+            "FOK": TimeInForce.FOK,
+            "OPG": TimeInForce.OPG,
+            "CLS": TimeInForce.CLS,
+        }
+        
+        tif_upper = tif_string.upper()
+        if tif_upper not in tif_map:
+            logger.warning(
+                "invalid_tif_string",
+                tif=tif_string,
+                defaulting_to="DAY",
+                valid_values=list(tif_map.keys())
+            )
+            return TimeInForce.DAY
+        
+        return tif_map[tif_upper]
+
     def round_to_tick(self, price: float, tick_size: float = None) -> float:
         """
         Round price to nearest tick size.
@@ -206,6 +237,9 @@ class AlpacaClient:
             entry_pct = self.config.entries.buy_stop_pct_above_last
             entry_price = self.round_to_tick(last_price * (1 + entry_pct / 100))
             
+            # Get time-in-force from config
+            tif = self._get_time_in_force(self.config.entries.tif)
+            
             if is_crypto:
                 # Crypto: Use limit order (stop orders not supported)
                 # Limit order at breakout price acts similar to buy stop
@@ -213,13 +247,14 @@ class AlpacaClient:
                     symbol=symbol,
                     qty=qty,
                     side=OrderSide.BUY,
-                    time_in_force=TimeInForce.GTC,  # GTC for crypto (24/7)
+                    time_in_force=tif,
                     limit_price=entry_price
                 )
                 logger.info(
                     "crypto_entry_order_type",
                     symbol=symbol,
                     order_type="limit",
+                    tif=tif.value,
                     note="Stop orders not supported for crypto, using limit order"
                 )
             else:
@@ -229,7 +264,7 @@ class AlpacaClient:
                         symbol=symbol,
                         qty=qty,
                         side=OrderSide.BUY,
-                        time_in_force=TimeInForce.DAY,
+                        time_in_force=tif,
                         stop_price=entry_price
                     )
                 else:  # buy_stop_limit
@@ -239,7 +274,7 @@ class AlpacaClient:
                         symbol=symbol,
                         qty=qty,
                         side=OrderSide.BUY,
-                        time_in_force=TimeInForce.DAY,
+                        time_in_force=tif,
                         stop_price=entry_price,
                         limit_price=limit_price
                     )
@@ -258,6 +293,7 @@ class AlpacaClient:
                 qty=qty,
                 entry_price=entry_price,
                 order_type=order.type.value,
+                tif=tif.value,
                 is_crypto=is_crypto
             )
             
@@ -294,6 +330,9 @@ class AlpacaClient:
             
             trail_percent = self.config.stops.trailing_stop_pct
             
+            # Get time-in-force from config
+            tif = self._get_time_in_force(self.config.stops.tif)
+            
             if is_crypto:
                 # Crypto: Use stop-loss limit order (trailing stops not supported)
                 # Calculate stop price from current price
@@ -306,7 +345,7 @@ class AlpacaClient:
                     symbol=symbol,
                     qty=qty,
                     side=OrderSide.SELL,
-                    time_in_force=TimeInForce.GTC,  # GTC for crypto (24/7)
+                    time_in_force=tif,
                     limit_price=stop_price  # Sell at stop price
                 )
                 
@@ -315,6 +354,7 @@ class AlpacaClient:
                     symbol=symbol,
                     qty=qty,
                     stop_price=stop_price,
+                    tif=tif.value,
                     note="Trailing stops not supported for crypto, using fixed stop-loss limit order"
                 )
             else:
@@ -323,7 +363,7 @@ class AlpacaClient:
                     symbol=symbol,
                     qty=qty,
                     side=OrderSide.SELL,
-                    time_in_force=TimeInForce.GTC,
+                    time_in_force=tif,
                     trail_percent=trail_percent
                 )
             
@@ -342,6 +382,7 @@ class AlpacaClient:
                 trail_percent=trail_percent if not is_crypto else None,
                 stop_price=stop_price if is_crypto else None,
                 order_type=order.type.value,
+                tif=tif.value,
                 is_crypto=is_crypto
             )
             
