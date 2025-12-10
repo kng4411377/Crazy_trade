@@ -74,28 +74,50 @@ pip install -r requirements.txt
 
 ### Configuration
 
-Edit `config.yaml`:
+**Step 1: Setup config files**
+
+```bash
+# Copy example configs
+cp config.yaml.example config.yaml
+cp config.crypto.yaml.example config.crypto.yaml  # Optional: for crypto trading
+cp secrets.yaml.example secrets.yaml
+
+# Your local config files are gitignored - they won't be committed
+```
+
+**Step 2: Add your API keys to `secrets.yaml`**
 
 ```yaml
 alpaca:
   api_key: "YOUR_ALPACA_API_KEY"        # From Alpaca dashboard
   secret_key: "YOUR_ALPACA_SECRET_KEY"  # Keep secure!
+```
 
+**Step 3: Customize `config.yaml` for your strategy**
+
+```yaml
 mode: "paper"          # "paper" | "live"
 
 watchlist:             # Your symbols (up to ~20)
   - "TSLA"
   - "NVDA"
-  - "SMCI"
-  - "META"
+  - "AAPL"
+  - "AMD"
 
 allocation:
   total_usd_cap: 20000
   per_symbol_usd: 1000
   min_cash_reserve_percent: 10
+
+entries:
+  entry_price_strategy: "current"  # "current" | "sma" | "opening"
+  buy_stop_pct_above_last: 5.0
+  tif: "DAY"
 ```
 
-⚠️ **Security**: Never commit your API keys to version control!
+⚠️ **Security**: Your API keys are in `secrets.yaml` (gitignored). Never commit them!
+
+💡 **Updates**: When you pull new code, your local `config.yaml` and `secrets.yaml` won't be overwritten. New features will appear in the `.example` files.
 
 ### Running the Bot
 

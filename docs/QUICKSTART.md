@@ -42,13 +42,25 @@ pip install -r requirements.txt
 
 ## Step 3: Configure Bot
 
-Edit `config.yaml`:
+**3.1: Copy example configs**
+
+```bash
+# The setup.sh script does this automatically, or manually:
+cp config.yaml.example config.yaml
+cp secrets.yaml.example secrets.yaml
+```
+
+**3.2: Add your API keys to `secrets.yaml`**
 
 ```yaml
 alpaca:
   api_key: "YOUR_API_KEY_HERE"        # Paste your API key
   secret_key: "YOUR_SECRET_KEY_HERE"  # Paste your secret key
+```
 
+**3.3: Customize your strategy in `config.yaml`**
+
+```yaml
 mode: "paper"          # ⚠️ START WITH PAPER!
 
 watchlist:
@@ -63,6 +75,7 @@ allocation:
 entries:
   type: "buy_stop"
   buy_stop_pct_above_last: 5.0  # Enter at +5%
+  entry_price_strategy: "current"  # "current" | "sma" | "opening"
   tif: "DAY"
 
 stops:
@@ -75,7 +88,10 @@ hours:
   allow_after_hours: false
 ```
 
-⚠️ **Security**: Never commit `config.yaml` with real API keys to Git!
+⚠️ **Security**: 
+- Your API keys are in `secrets.yaml` (gitignored)
+- Your settings are in `config.yaml` (gitignored)
+- Both files are safe from git commits - they won't be overwritten by updates!
 
 ## Step 4: Test Connection
 

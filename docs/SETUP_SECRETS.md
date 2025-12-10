@@ -6,10 +6,15 @@ Your Alpaca API keys should **NEVER** be committed to Git. We keep them in a sep
 
 ## 📋 Quick Setup
 
-### Step 1: Copy the Example File
+### Step 1: Copy the Example Files
 
 ```bash
+# Copy config templates (setup.sh does this automatically)
+cp config.yaml.example config.yaml
 cp secrets.yaml.example secrets.yaml
+
+# Optional: for crypto trading
+cp config.crypto.yaml.example config.crypto.yaml
 ```
 
 ### Step 2: Get Your Alpaca API Keys
@@ -45,11 +50,18 @@ git status
 
 ```
 crazy_trade/
-├── config.yaml              ✅ Safe to commit (no secrets)
-├── secrets.yaml             ❌ NEVER commit (has API keys)
+├── config.yaml              ❌ NEVER commit (your local settings - gitignored)
+├── config.yaml.example      ✅ Safe to commit (template)
+├── secrets.yaml             ❌ NEVER commit (has API keys - gitignored)
 ├── secrets.yaml.example     ✅ Safe to commit (template)
-└── .gitignore              ✅ Includes secrets.yaml
+├── config.crypto.yaml       ❌ NEVER commit (your crypto settings - gitignored)
+├── config.crypto.yaml.example ✅ Safe to commit (template)
+└── .gitignore              ✅ Excludes config.yaml, secrets.yaml, etc.
 ```
+
+**Why both files are gitignored:**
+- `secrets.yaml` - Contains your API keys (security risk)
+- `config.yaml` - Contains your personal strategy settings (prevents git conflicts)
 
 ---
 
@@ -175,10 +187,13 @@ python3 test_connection.py
 
 ## 📚 Related Files
 
-- `config.yaml` - Main configuration (safe to commit)
-- `secrets.yaml` - API keys (never commit)
-- `secrets.yaml.example` - Template (commit this)
-- `.gitignore` - Excludes secrets.yaml
+- `config.yaml` - Your local settings (gitignored, never committed)
+- `config.yaml.example` - Template for config (safe to commit)
+- `secrets.yaml` - Your API keys (gitignored, never committed)
+- `secrets.yaml.example` - Template for secrets (safe to commit)
+- `config.crypto.yaml` - Your crypto settings (gitignored, optional)
+- `config.crypto.yaml.example` - Template for crypto (safe to commit)
+- `.gitignore` - Excludes local config and secrets files
 - `SETUP_SECRETS.md` - This guide
 
 ---

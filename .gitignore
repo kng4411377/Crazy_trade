@@ -49,6 +49,10 @@ logs/
 secrets.yaml
 config.local.yaml
 
+# Local config files (use *.example templates instead)
+config.yaml
+config.crypto.yaml
+
 # OS
 .DS_Store
 Thumbs.db

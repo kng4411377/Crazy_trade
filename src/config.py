@@ -29,6 +29,14 @@ class EntriesConfig(BaseModel):
     type: Literal["buy_stop", "buy_stop_limit"] = "buy_stop"
     buy_stop_pct_above_last: float = 5.0
     stop_limit_max_slip_pct: float = 1.0
+    entry_price_strategy: Literal["current", "sma", "opening"] = Field(
+        default="current",
+        description="Entry price calculation: 'current' (spot price), 'sma' (SMA of last N bars), 'opening' (today's open)"
+    )
+    sma_periods: int = Field(
+        default=10,
+        description="Number of periods for SMA calculation (only used if entry_price_strategy='sma')"
+    )
     tif: str = Field(
         default="DAY",
         description="Time-in-force: DAY (cancel at close), GTC (good till cancelled), IOC, FOK, etc."

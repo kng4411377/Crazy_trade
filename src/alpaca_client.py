@@ -25,7 +25,13 @@ from alpaca.trading.enums import (
     OrderClass,
 )
 from alpaca.data.historical import StockHistoricalDataClient, CryptoHistoricalDataClient
-from alpaca.data.requests import StockLatestQuoteRequest, CryptoLatestQuoteRequest
+from alpaca.data.requests import (
+    StockLatestQuoteRequest,
+    CryptoLatestQuoteRequest,
+    StockBarsRequest,
+    CryptoBarsRequest,
+)
+from alpaca.data.timeframe import TimeFrame
 
 from src.config import BotConfig
 
@@ -183,6 +189,140 @@ class AlpacaClient:
         
         return tif_map[tif_upper]
 
+    async def get_historical_bars(self, symbol: str, periods: int = 10) -> Optional[list]:
+        """
+        Get historical daily bars for a symbol.
+        
+        Args:
+            symbol: Stock or crypto symbol
+            periods: Number of daily bars to fetch
+            
+        Returns:
+            List of bar data (most recent first) or None on error
+        """
+        try:
+            from datetime import datetime, timedelta
+            
+            is_crypto = self.config.is_crypto_symbol(symbol)
+            
+            # Get bars from last N+5 days (to account for weekends/holidays)
+            start_date = datetime.now() - timedelta(days=periods + 10)
+            
+            if is_crypto:
+                request = CryptoBarsRequest(
+                    symbol_or_symbols=symbol,
+                    timeframe=TimeFrame.Day,
+                    start=start_date
+                )
+                bars_dict = self.crypto_data_client.get_crypto_bars(request)
+            else:
+                request = StockBarsRequest(
+                    symbol_or_symbols=symbol,
+                    timeframe=TimeFrame.Day,
+                    start=start_date
+                )
+                bars_dict = self.data_client.get_stock_bars(request)
+            
+            if symbol not in bars_dict:
+                logger.warning("no_bars_data", symbol=symbol)
+                return None
+            
+            bars = bars_dict[symbol]
+            
+            # Convert to list and get last N bars
+            bar_list = []
+            for bar in bars:
+                bar_list.append({
+                    'timestamp': bar.timestamp,
+                    'open': float(bar.open),
+                    'high': float(bar.high),
+                    'low': float(bar.low),
+                    'close': float(bar.close),
+                    'volume': float(bar.volume),
+                })
+            
+            # Return most recent N bars (reverse chronological)
+            return bar_list[-periods:] if len(bar_list) >= periods else bar_list
+            
+        except Exception as e:
+            logger.error("historical_bars_fetch_failed", symbol=symbol, error=str(e))
+            return None
+
+    async def get_entry_base_price(self, symbol: str, last_price: float) -> Optional[float]:
+        """
+        Calculate base price for entry order based on configured strategy.
+        
+        Args:
+            symbol: Stock or crypto symbol
+            last_price: Current market price (fallback)
+            
+        Returns:
+            Base price for entry calculation or None on error
+        """
+        try:
+            strategy = self.config.entries.entry_price_strategy
+            
+            if strategy == "current":
+                # Use current spot price (existing behavior)
+                logger.debug("entry_strategy_current", symbol=symbol, price=last_price)
+                return last_price
+            
+            elif strategy == "sma":
+                # Use SMA of last N closing prices
+                periods = self.config.entries.sma_periods
+                bars = await self.get_historical_bars(symbol, periods)
+                
+                if not bars or len(bars) == 0:
+                    logger.warning("no_bars_for_sma_fallback_to_current", symbol=symbol)
+                    return last_price
+                
+                # Calculate SMA from closing prices
+                closes = [bar['close'] for bar in bars]
+                sma = sum(closes) / len(closes)
+                
+                logger.info(
+                    "entry_strategy_sma",
+                    symbol=symbol,
+                    sma=round(sma, 2),
+                    periods=len(closes),
+                    recent_closes=closes[-3:]  # Show last 3 for context
+                )
+                return sma
+            
+            elif strategy == "opening":
+                # Use today's opening price
+                bars = await self.get_historical_bars(symbol, periods=1)
+                
+                if not bars or len(bars) == 0:
+                    logger.warning("no_bars_for_opening_fallback_to_current", symbol=symbol)
+                    return last_price
+                
+                opening_price = bars[-1]['open']  # Most recent bar's open
+                
+                logger.info(
+                    "entry_strategy_opening",
+                    symbol=symbol,
+                    opening_price=opening_price
+                )
+                return opening_price
+            
+            else:
+                logger.warning(
+                    "unknown_entry_strategy_fallback_to_current",
+                    strategy=strategy,
+                    symbol=symbol
+                )
+                return last_price
+                
+        except Exception as e:
+            logger.error(
+                "entry_base_price_calculation_failed",
+                symbol=symbol,
+                strategy=strategy,
+                error=str(e)
+            )
+            return last_price  # Fallback to current price on error
+
     def round_to_tick(self, price: float, tick_size: float = None) -> float:
         """
         Round price to nearest tick size.
@@ -224,7 +364,7 @@ class AlpacaClient:
         Args:
             symbol: Stock or crypto symbol
             qty: Quantity to buy (fractional supported for crypto)
-            last_price: Current price
+            last_price: Current price (used as fallback)
             
         Returns:
             Tuple of (parent_order, None) - child order placed after fill
@@ -233,9 +373,15 @@ class AlpacaClient:
             # Detect if symbol is crypto
             is_crypto = self.config.is_crypto_symbol(symbol)
             
-            # Calculate entry price
+            # Get base price based on configured strategy (SMA, opening, or current)
+            base_price = await self.get_entry_base_price(symbol, last_price)
+            if not base_price:
+                logger.error("could_not_determine_base_price", symbol=symbol)
+                return None, None
+            
+            # Calculate entry price (base price + configured percentage)
             entry_pct = self.config.entries.buy_stop_pct_above_last
-            entry_price = self.round_to_tick(last_price * (1 + entry_pct / 100))
+            entry_price = self.round_to_tick(base_price * (1 + entry_pct / 100))
             
             # Get time-in-force from config
             tif = self._get_time_in_force(self.config.entries.tif)
@@ -291,7 +437,10 @@ class AlpacaClient:
                 symbol=symbol,
                 order_id=str(order.id),  # Convert UUID to string for clean logging
                 qty=qty,
+                base_price=base_price,
                 entry_price=entry_price,
+                entry_pct=entry_pct,
+                strategy=self.config.entries.entry_price_strategy,
                 order_type=order.type.value,
                 tif=tif.value,
                 is_crypto=is_crypto

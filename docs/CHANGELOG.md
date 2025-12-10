@@ -4,6 +4,120 @@ All notable changes to the Crazy Trade Bot project with detailed technical infor
 
 ---
 
+## [Unreleased] - Latest
+
+### 🎯 Entry Price Strategy System
+
+**Feature:** Configurable entry price calculation strategies with SMA and opening price support.
+
+**Configuration:**
+```yaml
+entries:
+  entry_price_strategy: "current"  # "current" | "sma" | "opening"
+  sma_periods: 10                  # For SMA strategy
+  buy_stop_pct_above_last: 5.0    # Applied to base price
+```
+
+**Strategies:**
+1. **`current`** (default) - Uses current spot price (most responsive)
+2. **`sma`** - Uses Simple Moving Average of last N closing prices (smoother, filters noise)
+3. **`opening`** - Uses today's opening price (stable reference throughout day)
+
+**How It Works:**
+- Bot calculates base price using chosen strategy
+- Adds percentage (e.g., +5%) to get entry trigger
+- Re-calculates fresh each time order is placed/re-armed
+- SMA automatically updates with new daily bars
+
+**Benefits:**
+- ✅ Avoid chasing intraday spikes with SMA strategy
+- ✅ Consistent daily reference with opening price strategy
+- ✅ Trade breakouts above trend (SMA) not just current price
+- ✅ Reduce false breakout entries
+
+**Code Changes:**
+- `src/config.py`: Added `entry_price_strategy` and `sma_periods` to `EntriesConfig`
+- `src/alpaca_client.py`: Added `get_historical_bars()` method
+- `src/alpaca_client.py`: Added `get_entry_base_price()` method
+- `src/alpaca_client.py`: Updated `place_entry_with_trailing_stop()` to use strategy
+- `config.yaml.example`: Added documentation for new fields
+- `config.crypto.yaml.example`: Added crypto-specific strategy notes
+
+---
+
+### 🔧 Configurable Time-in-Force (TIF)
+
+**Feature:** Orders now respect configured TIF values instead of hard-coded defaults.
+
+**Configuration:**
+```yaml
+entries:
+  tif: "DAY"  # "DAY" | "GTC" | "IOC" | "FOK"
+
+stops:
+  tif: "GTC"  # "DAY" | "GTC"
+```
+
+**How It Works:**
+- Entry orders use `entries.tif` (default: DAY for stocks, GTC for crypto)
+- Trailing stops use `stops.tif` (default: GTC)
+- Invalid TIF values fall back to DAY with warning
+
+**Benefits:**
+- ✅ GTC orders stay active across sessions (if desired)
+- ✅ DAY orders auto-cancel at close (prevents stale orders)
+- ✅ Flexibility for different trading styles
+- ✅ Logged in order placement events
+
+**Code Changes:**
+- `src/config.py`: Added TIF descriptions to `EntriesConfig` and `StopsConfig`
+- `src/alpaca_client.py`: Added `_get_time_in_force()` helper method
+- `src/alpaca_client.py`: Updated order placement to use config TIF values
+- `config.yaml.example`: Added TIF documentation
+
+---
+
+### 📁 Config File Separation (Git-Safe Updates)
+
+**Feature:** Local configs are now gitignored to prevent conflicts on updates.
+
+**New File Structure:**
+```
+config.yaml              ← Your local config (gitignored)
+config.yaml.example      ← Template in git (shows new features)
+config.crypto.yaml       ← Your crypto config (gitignored)
+config.crypto.yaml.example ← Crypto template in git
+```
+
+**How It Works:**
+- Templates (`.example`) are committed to git
+- Local configs are gitignored
+- `setup.sh` automatically copies templates on first run
+- Git pulls never overwrite your settings
+
+**Benefits:**
+- ✅ No merge conflicts when pulling updates
+- ✅ Your settings stay local and safe
+- ✅ New features appear in `.example` files
+- ✅ Easy to see what changed
+
+**Tools Added:**
+- `update_config.sh` - Shows differences between your config and template
+- `merge_config.py` - Smart merger that preserves your values
+- `docs/UPDATING_CONFIG.md` - Complete guide for config updates
+
+**Code Changes:**
+- `.gitignore`: Added `config.yaml` and `config.crypto.yaml`
+- `setup.sh`: Auto-copies templates if configs don't exist
+- `README.md`: Updated setup instructions
+- `docs/QUICKSTART.md`: Updated config setup steps
+- `docs/SETUP_SECRETS.md`: Documented new file structure
+
+**Migration:**
+Existing users: Your current `config.yaml` continues to work. It's now gitignored automatically.
+
+---
+
 ## [1.2.0] - 2024-11-21
 
 ### 🛡️ Safety Features Added (Phase 1 - Quick Wins)

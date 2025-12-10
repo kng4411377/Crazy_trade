@@ -31,12 +31,29 @@ pip install --upgrade pip
 echo "📚 Installing dependencies..."
 pip install -r requirements.txt
 
-# Check config
+# Setup config files
 if [ ! -f "config.yaml" ]; then
-    echo "⚠️  Warning: config.yaml not found"
-    echo "   Please review and customize config.yaml before running"
+    if [ -f "config.yaml.example" ]; then
+        echo "📝 Creating config.yaml from template..."
+        cp config.yaml.example config.yaml
+        echo "   ✅ config.yaml created - please customize it for your needs"
+    else
+        echo "⚠️  Warning: config.yaml and config.yaml.example not found"
+    fi
 else
-    echo "✅ Configuration file found"
+    echo "✅ config.yaml already exists"
+fi
+
+if [ ! -f "secrets.yaml" ]; then
+    if [ -f "secrets.yaml.example" ]; then
+        echo "📝 Creating secrets.yaml from template..."
+        cp secrets.yaml.example secrets.yaml
+        echo "   ⚠️  REQUIRED: Add your Alpaca API keys to secrets.yaml"
+    else
+        echo "⚠️  Warning: secrets.yaml and secrets.yaml.example not found"
+    fi
+else
+    echo "✅ secrets.yaml already exists"
 fi
 
 echo ""
