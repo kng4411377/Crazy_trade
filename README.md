@@ -1,52 +1,29 @@
 # Crazy Trade Bot - Alpaca Automated Trading System
 
-A sophisticated, production-ready automated trading bot for Alpaca Trading that implements momentum-based entry strategies with trailing stop risk management.
+A sophisticated, production-ready automated trading bot for Alpaca that implements momentum-based breakout strategies with trailing stop risk management. Supports both **stocks** (during market hours) and **cryptocurrency** (24/7).
 
-## 🎯 Overview
+## 🎯 What This Bot Does
 
-This bot continuously monitors a watchlist of high-volatility stocks and automatically:
-- Places **Buy Stop orders** at +5% above current price (entry trigger)
-- Attaches **10% Trailing Stop** orders for risk management
-- Enforces **cooldown periods** after stop-outs to prevent overtrading
-- Operates strictly during **Regular Trading Hours (RTH)** for U.S. equities
-- Manages position sizing based on dollar allocation and exposure limits
+This bot continuously monitors your watchlist and automatically:
 
-## 🏗️ Architecture
+✅ **Places breakout entry orders** when price approaches momentum levels  
+✅ **Manages trailing stops** to protect profits and limit losses  
+✅ **Enforces cooldown periods** (24hr default) after stop-outs to prevent overtrading  
+✅ **Supports stocks** (during regular trading hours) and **crypto** (24/7 trading)  
+✅ **Auto-rearms orders** - If unfilled at market close, places new order next day  
+✅ **Manages position sizing** based on dollar allocation and exposure limits  
+✅ **Circuit breakers** - Stops trading if daily loss limits are exceeded  
 
-### Tech Stack
-- **Language**: Python 3.11+
-- **Broker API**: Alpaca Trading API via `alpaca-py` SDK
-- **Data Processing**: pandas, numpy
-- **Configuration**: pydantic, PyYAML
-- **Market Hours**: pandas_market_calendars
-- **Scheduling**: APScheduler
-- **Database**: SQLAlchemy/sqlmodel (SQLite by default)
-- **Logging**: structlog (structured JSON logging)
+### Key Features
 
-### Components
+- **Configurable Entry Strategies**: Use current price, SMA, or opening price as entry reference
+- **Smart Re-arming**: Automatically places new orders each trading session
+- **24/7 Crypto Support**: Trade Bitcoin, Ethereum, Dogecoin, and more around the clock
+- **Risk Management**: Multiple layers of safety including cooldowns, exposure limits, circuit breakers
+- **Paper Trading**: Test strategies risk-free with Alpaca's paper trading
+- **REST API**: Monitor bot remotely via HTTP endpoints
 
-```
-crazy_trade/
-├── config.yaml              # Configuration file
-├── main.py                  # Entry point
-├── requirements.txt         # Dependencies
-├── src/
-│   ├── __init__.py
-│   ├── bot.py              # Main bot orchestrator
-│   ├── config.py           # Configuration models
-│   ├── database.py         # Database models and operations
-│   ├── alpaca_client.py    # Alpaca API wrapper
-│   ├── market_hours.py     # RTH checking utilities
-│   ├── sizing.py           # Position sizing logic
-│   └── state_machine.py    # Per-symbol state machine
-└── tests/
-    ├── test_config.py
-    ├── test_database.py
-    ├── test_market_hours.py
-    ├── test_sizing.py
-    ├── test_state_machine.py
-    └── test_integration.py
-```
+---
 
 ## 🚀 Quick Start
 
@@ -54,8 +31,8 @@ crazy_trade/
 
 1. **Alpaca Trading Account** (Free paper trading or live)
    - Sign up at [alpaca.markets](https://alpaca.markets/)
-   - Generate API keys from dashboard
-2. **Python 3.11+** installed
+   - Generate API keys from dashboard (Paper Trading section)
+2. **Python 3.9+** installed
 
 ### Installation
 
@@ -63,29 +40,20 @@ crazy_trade/
 # Clone or download the project
 cd crazy_trade
 
-# Install dependencies
-pip install -r requirements.txt
+# Run setup script (creates venv, installs deps, copies configs)
+./setup.sh
 
-# Get your Alpaca API keys
-# 1. Go to https://app.alpaca.markets/
-# 2. Navigate to Paper Trading section
-# 3. Generate API Key and Secret Key
+# Or manual setup:
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+cp config.yaml.example config.yaml
+cp secrets.yaml.example secrets.yaml
 ```
 
 ### Configuration
 
-**Step 1: Setup config files**
-
-```bash
-# Copy example configs
-cp config.yaml.example config.yaml
-cp config.crypto.yaml.example config.crypto.yaml  # Optional: for crypto trading
-cp secrets.yaml.example secrets.yaml
-
-# Your local config files are gitignored - they won't be committed
-```
-
-**Step 2: Add your API keys to `secrets.yaml`**
+**Step 1: Add your Alpaca API keys to `secrets.yaml`**
 
 ```yaml
 alpaca:
@@ -93,198 +61,251 @@ alpaca:
   secret_key: "YOUR_ALPACA_SECRET_KEY"  # Keep secure!
 ```
 
-**Step 3: Customize `config.yaml` for your strategy**
+**Step 2: Customize `config.yaml` for your strategy**
 
 ```yaml
-mode: "paper"          # "paper" | "live"
+mode: "paper"          # "paper" | "live" - START WITH PAPER!
 
-watchlist:             # Your symbols (up to ~20)
+# Stock watchlist (trades during market hours)
+watchlist:
   - "TSLA"
   - "NVDA"
-  - "AAPL"
   - "AMD"
 
+# Crypto watchlist (trades 24/7) - optional
+crypto_watchlist:
+  - "BTC/USD"
+  - "ETH/USD"
+
 allocation:
-  total_usd_cap: 20000
-  per_symbol_usd: 1000
-  min_cash_reserve_percent: 10
+  total_usd_cap: 20000           # Max total capital deployed
+  per_symbol_usd: 1000           # Max per symbol
+  min_cash_reserve_percent: 10   # Keep 10% cash buffer
 
 entries:
   entry_price_strategy: "current"  # "current" | "sma" | "opening"
-  buy_stop_pct_above_last: 5.0
-  tif: "DAY"
+  buy_stop_pct_above_last: 5.0    # Entry trigger % above base price
+  tif: "DAY"                       # Time-in-force: "DAY" | "GTC"
+
+stops:
+  trailing_stop_pct: 10.0          # Trail 10% from peak
+  tif: "GTC"                       # Good till cancelled
+
+cooldowns:
+  after_stopout_minutes: 1440      # Wait 24hr after stop-out (prevents revenge trading)
 ```
 
-⚠️ **Security**: Your API keys are in `secrets.yaml` (gitignored). Never commit them!
-
-💡 **Updates**: When you pull new code, your local `config.yaml` and `secrets.yaml` won't be overwritten. New features will appear in the `.example` files.
+⚠️ **Security**: `config.yaml` and `secrets.yaml` are gitignored - safe from commits!
 
 ### Running the Bot
 
 ```bash
-# Start the bot
+# Start the bot (stocks mode)
 ./run.sh
 
-# Or specify custom config
-./run.sh my_config.yaml
+# Start with crypto config
+./run.sh config.crypto.yaml
 
 # Or run directly
 python3 main.py
+
+# Stop gracefully
+Ctrl+C
 ```
 
-## 📋 Trading Logic
+### Test Connection
 
-### State Machine (Per Symbol)
+```bash
+# Quick test to verify API keys work
+python3 test_connection.py
+
+# Expected: ✅ Connected! Account Value: $100,000.00
+```
+
+---
+
+## 📋 How It Works
+
+### Trading Flow (Per Symbol)
 
 Each symbol operates independently through these states:
 
-1. **NO_POSITION** → Place Buy Stop at +5% above current price
-2. **ENTRY_PENDING** → Monitor entry order (DAY order)
-3. **POSITION_OPEN** → Ensure 10% Trailing Stop exists and is healthy
-4. **COOLDOWN** → Wait 15-30 minutes after stop-out before re-entry
-
-### Order Flow
-
-#### Entry Orders
-- **Type**: Buy Stop (or Stop Limit with slippage cap)
-- **Trigger**: +5% above last traded price
-- **TIF**: DAY (auto-cancels at market close)
-- **RTH Only**: `outsideRth=False` prevents pre/post-market fills
-
-#### Risk Management
-- **Type**: Trailing Stop (or Trailing Limit)
-- **Trail**: 10% from high-water mark
-- **TIF**: GTC (persists across sessions)
-- **Attached**: Created as OCO child of entry order
-
-### Position Sizing
-
-Dollar-based sizing with multiple safety limits:
-
-```python
-# Basic calculation
-qty = floor(per_symbol_usd / last_price)
-
-# Constraints checked:
-# 1. Per-symbol exposure limit ($2000 default)
-# 2. Total portfolio exposure limit ($20,000 default)
-# 3. Minimum cash reserve (10% of account)
+```
+1. NO_POSITION
+   └─> Places entry order (buy stop at price + X%)
+   
+2. ENTRY_PENDING
+   └─> Monitors entry order
+       ├─> Filled? → Go to POSITION_OPEN
+       ├─> Cancelled/Expired? → Back to NO_POSITION (re-arms next session)
+       └─> Market closes? → Cancelled, re-arms tomorrow
+   
+3. POSITION_OPEN
+   └─> Trailing stop active
+       ├─> Price rises? → Stop trails up
+       └─> Stop fills? → Go to COOLDOWN
+   
+4. COOLDOWN (24 hours default)
+   └─> Wait period to prevent revenge trading
+       └─> Expires? → Back to NO_POSITION
 ```
 
-### Market Hours Enforcement
+### Entry Strategy Options
 
-- Uses `pandas_market_calendars` for accurate RTH detection
-- Only places/modifies/cancels orders during 9:30 AM - 4:00 PM ET
-- Automatically cancels unfilled entries 15 minutes before close
-- Bot runs 24/7 but remains dormant outside RTH
+**1. Current Price (default)**
+```yaml
+entry_price_strategy: "current"
+# Entry = current_price × 1.05 (if buy_stop_pct_above_last = 5.0)
+# Most responsive, recalculates every time
+```
 
-### Risk Controls
+**2. SMA (Simple Moving Average)**
+```yaml
+entry_price_strategy: "sma"
+sma_periods: 10
+# Entry = SMA(10 days) × 1.05
+# Smoother, filters out noise, good for swing trading
+```
 
-1. **Cooldown After Stop-Out**: 15-30 minute pause prevents revenge trading
-2. **Exposure Limits**: Per-symbol and total portfolio caps
-3. **Duplicate Detection**: Automatically cancels duplicate trailing stops
-4. **Quantity Verification**: Ensures stop size matches position size
-5. **Cash Reserve**: Maintains minimum cash buffer
+**3. Opening Price**
+```yaml
+entry_price_strategy: "opening"
+# Entry = today_open × 1.05
+# Stable reference throughout the day
+```
 
-## 🗄️ Database Schema
+### Auto-Rearm Behavior
+
+**Important**: When entry orders expire or get cancelled:
+- ✅ Bot automatically places **new order next trading session**
+- ✅ Uses fresh price calculation (SMA/opening/current at that time)
+- ✅ Continues until filled or you stop the bot
+- ❌ Cooldown period **only triggers after stop-out**, not order expiration
+
+Example:
+```
+Day 1: Place buy stop at $105 (current price $100)
+       → Market closes, order expired
+Day 2: Auto-place new buy stop at $108 (current price now $103)
+       → Market closes, order expired
+Day 3: Auto-place new buy stop at $110 (current price now $105)
+       → Order fills! Position opened, trailing stop activated
+```
+
+### Risk Management
+
+**Position Sizing**
+```python
+# Dollar-based sizing
+qty = floor(per_symbol_usd / last_price)
+
+# With constraints:
+# 1. Per-symbol exposure limit (default $2000)
+# 2. Total portfolio exposure limit (default $20000)
+# 3. Minimum cash reserve (default 10%)
+# 4. Max concurrent positions (default 5)
+```
+
+**Safety Features**
+- **Cooldown After Stop-Out**: Default 24hr wait prevents revenge trading
+- **Circuit Breakers**: Stop trading if daily loss > 3% or $500
+- **Exposure Limits**: Per-symbol and total portfolio caps
+- **Duplicate Detection**: Automatically cancels duplicate trailing stops
+- **Market Hours Enforcement** (stocks): Only trades 9:30 AM - 4:00 PM ET
+- **Session Time Filters**: Skip first 5min after open, last 10min before close
+
+---
+
+## 🏗️ Architecture
+
+### Tech Stack
+- **Language**: Python 3.9+
+- **Broker API**: Alpaca Trading API via `alpaca-py` SDK
+- **Data**: Historical bars from Alpaca Data API
+- **Configuration**: Pydantic models + YAML
+- **Market Hours**: pandas_market_calendars
+- **Database**: SQLite (SQLAlchemy)
+- **Logging**: structlog (structured JSON)
+
+### Project Structure
+
+```
+crazy_trade/
+├── config.yaml              # Your local config (gitignored)
+├── config.yaml.example      # Template (committed to git)
+├── secrets.yaml             # Your API keys (gitignored)
+├── main.py                  # Entry point
+├── requirements.txt         # Dependencies
+│
+├── src/                     # Core bot logic
+│   ├── bot.py              # Main orchestrator
+│   ├── state_machine.py    # Per-symbol state machine
+│   ├── alpaca_client.py    # Alpaca API wrapper
+│   ├── config.py           # Configuration models
+│   ├── database.py         # SQLite models & ops
+│   ├── sizing.py           # Position sizing logic
+│   ├── market_hours.py     # Trading hours checking
+│   └── performance.py      # P&L tracking
+│
+├── scripts/                 # Utility scripts
+│   ├── show_performance.py # View P&L report
+│   ├── export_trades.py    # Export trades to CSV
+│   ├── check_status.py     # Check bot status
+│   └── reset_paper_account.py
+│
+├── docs/                    # Documentation
+│   ├── QUICKSTART.md       # 5-minute setup guide
+│   ├── CONFIGURATION.md    # Config reference
+│   ├── API_GUIDE.md        # REST API docs
+│   ├── CRYPTO_GUIDE.md     # Crypto trading setup
+│   ├── UPDATING_CONFIG.md  # How to merge config updates
+│   └── CHANGELOG.md        # Version history
+│
+└── tests/                   # Test suite
+    ├── test_state_machine.py
+    ├── test_alpaca_client.py
+    └── ...
+```
+
+---
+
+## 🗄️ Database
 
 SQLite database (`bot.db`) tracks all activity:
 
 ### Tables
 
-**state** - Per-symbol state
-- `symbol` (PK): Stock symbol
+**`state`** - Per-symbol state
+- `symbol` (PK): Stock or crypto symbol
 - `cooldown_until_ts`: Cooldown expiration timestamp
 - `last_parent_id`: Last entry order ID
 - `last_trail_id`: Last trailing stop ID
 
-**orders** - All orders placed
-- `order_id` (PK): IBKR order ID
+**`orders`** - All orders placed by bot
+- `order_id` (PK): Alpaca order ID (UUID)
 - `symbol`, `side`, `order_type`, `status`
 - `qty`, `stop_price`, `limit_price`, `trailing_pct`
-- `parent_id`: For child orders
 
-**fills** - All executions
+**`fills`** - All trade executions
 - `exec_id` (PK): Execution ID
-- `symbol`, `side`, `qty`, `price`
-- `order_id`, `ts`
+- `symbol`, `side`, `qty`, `price`, `order_id`, `ts`
 
-**events** - Audit trail
+**`events`** - Audit trail
 - `event_type`: e.g., "entry_order_placed", "stopout_cooldown_started"
 - `symbol`, `payload_json`, `ts`
 
-**performance_snapshots** - Daily performance tracking
-- `date`: Snapshot timestamp
-- `account_value`, `cash_value`, `position_value`
-- `unrealized_pnl`, `realized_pnl`, `daily_pnl`
-- `num_positions`, `num_trades`
+**`performance_snapshots`** - Daily performance tracking
+- `date`, `account_value`, `cash_value`, `position_value`
+- `unrealized_pnl`, `realized_pnl`, `num_positions`, `num_trades`
 
-## 🧪 Testing
+---
 
-Comprehensive test suite covering:
+## 📊 Monitoring
 
-```bash
-# Run all tests
-pytest
-
-# Run specific test file
-pytest tests/test_state_machine.py
-
-# Run integration tests only
-pytest -m integration
-
-# Run with coverage
-pytest --cov=src --cov-report=html
-```
-
-### Test Scenarios
-
-✅ **Gap-up through stop** - Entry fills, trailing stop activates  
-✅ **Trailing stop triggers** - Cooldown starts, prevents re-entry  
-✅ **Cooldown expiration** - New entries allowed after timeout  
-✅ **Duplicate stop detection** - Extras cancelled automatically  
-✅ **RTH gating** - Orders only during regular hours  
-✅ **Position sizing** - Exposure limits enforced  
-✅ **End-of-day cancellation** - Unfilled entries cancelled  
-
-## 📊 Monitoring & Logging
-
-### Structured Logging
-
-All logs in JSON format (structlog):
-
-```json
-{
-  "event": "entry_order_placed",
-  "symbol": "TSLA",
-  "order_id": 1001,
-  "qty": 10,
-  "stop_price": 262.50,
-  "timestamp": "2024-10-24T14:30:00.123Z",
-  "level": "info"
-}
-```
-
-### Key Events Logged
-
-- `bot_started` / `bot_stopped`
-- `entry_order_placed` / `order_filled` / `order_cancelled`
-- `trailing_stop_placed` / `trailing_stop_recreated`
-- `stopout_cooldown_started`
-- `duplicate_stop_cancelled`
-- `exposure_limit_exceeded`
-
-### Connection Keep-Alive
-
-The bot automatically pings IBKR every 5 minutes to prevent connection timeout:
-- Works 24/7 (even when market is closed)
-- Configurable interval in `config.yaml` under `polling.keepalive_seconds`
-- See **`KEEPALIVE_INFO.md`** for details
-
-### Monitoring Commands
+### View Performance
 
 ```bash
-# View performance & P/L
+# Show P&L report
 python scripts/show_performance.py
 
 # Export trades to CSV
@@ -292,7 +313,13 @@ python scripts/export_trades.py
 
 # Check bot status
 python scripts/check_status.py
+```
 
+### Logs
+
+Structured JSON logging:
+
+```bash
 # Tail logs in real-time
 tail -f bot.log | jq .
 
@@ -301,186 +328,156 @@ grep "TSLA" bot.log | jq .
 
 # Count fills by symbol
 grep "fill_received" bot.log | jq -r .symbol | sort | uniq -c
-
-# Check cooldown status
-sqlite3 bot.db "SELECT symbol, cooldown_until_ts FROM state WHERE cooldown_until_ts > datetime('now')"
 ```
 
-### Remote Monitoring (API Server)
+### REST API (Optional)
 
-For remote access, start the simple REST API:
+For remote monitoring:
 
 ```bash
 # Start API server
 ./run_api.sh
 
-# Or with custom port
-./run_api.sh 9000
+# Then access from anywhere:
+curl http://localhost:8080/status | jq .
+curl http://localhost:8080/performance | jq .
+curl http://localhost:8080/fills
 ```
 
-Then access from anywhere:
+See **[docs/API_GUIDE.md](docs/API_GUIDE.md)** for full API documentation.
 
-```bash
-# Check status
-curl http://your-server-ip:8080/status | jq .
-
-# View performance
-curl http://your-server-ip:8080/performance | jq .
-
-# Get recent fills
-curl http://your-server-ip:8080/fills
-
-# See all endpoints
-curl http://your-server-ip:8080/
-```
-
-See **[`docs/API_GUIDE.md`](docs/API_GUIDE.md)** for full API documentation.
+---
 
 ## ⚙️ Configuration Reference
 
-### Entry Strategy
+### Entry Orders
 
 ```yaml
 entries:
   type: "buy_stop"              # "buy_stop" | "buy_stop_limit"
-  buy_stop_pct_above_last: 5.0  # Entry trigger above last price
-  stop_limit_max_slip_pct: 1.0  # Max slippage for limit orders
-  tif: "DAY"
-  cancel_at_close: true          # Cancel unfilled at EOD
-  rearm_next_session: true       # Recreate next day
+  
+  # Entry price strategy
+  entry_price_strategy: "current"  # "current" | "sma" | "opening"
+  sma_periods: 10                  # If using "sma" strategy
+  
+  # Entry trigger
+  buy_stop_pct_above_last: 5.0  # % above base price
+  stop_limit_max_slip_pct: 1.0  # Max slippage (if using buy_stop_limit)
+  
+  # Order behavior
+  tif: "DAY"                    # "DAY" | "GTC"
+  cancel_at_close: true         # Cancel unfilled at EOD
+  rearm_next_session: true      # Recreate next day
 ```
 
-### Stop Strategy
+### Trailing Stops
 
 ```yaml
 stops:
-  trailing_stop_pct: 10.0        # Trail distance from peak
-  use_trailing_limit: false      # Use TRAIL LIMIT for slippage control
-  trail_limit_offset_pct: 0.2    # Limit offset if above enabled
-  tif: "GTC"                     # Persist across sessions
+  trailing_stop_pct: 10.0       # Trail 10% from peak
+  use_trailing_limit: false     # Use trailing limit orders
+  trail_limit_offset_pct: 0.2   # Limit offset if above enabled
+  tif: "GTC"                    # Usually want GTC for stops
 ```
 
 ### Risk Management
 
 ```yaml
 risk:
-  max_total_exposure_usd: 20000  # Portfolio-wide cap
-  max_symbol_exposure_usd: 2000  # Per-symbol cap
+  max_total_exposure_usd: 20000     # Portfolio-wide cap
+  max_symbol_exposure_usd: 2000     # Per-symbol cap
+  max_daily_loss_pct: 3.0           # Circuit breaker: stop if daily loss > 3%
+  max_daily_loss_usd: 500           # Circuit breaker: stop if daily loss > $500
+  max_concurrent_positions: 5       # Max positions at once
 
-allocation:
-  per_symbol_usd: 1000           # Default per symbol
-  per_symbol_override:           # Symbol-specific overrides
-    TSLA: 1500
-  min_cash_reserve_percent: 10   # Keep 10% in cash
+cooldowns:
+  after_stopout_minutes: 1440       # 24 hours (prevents revenge trading)
 ```
 
-### Market Hours
+### Market Hours (Stocks Only)
 
 ```yaml
 hours:
-  calendar: "XNYS"               # NYSE calendar
-  allow_pre_market: false        # Strict RTH only
+  calendar: "XNYS"              # NYSE calendar
+  allow_pre_market: false       # Regular hours only
   allow_after_hours: false
+  skip_first_minutes: 5         # Skip first 5min (volatility)
+  skip_last_minutes: 10         # Skip last 10min (volatility)
 ```
 
-### Cooldowns
+---
+
+## 🔧 Advanced Features
+
+### Crypto Trading (24/7)
 
 ```yaml
-cooldowns:
-  after_stopout_minutes: 20      # Wait after stop-out (15-30 recommended)
+# Separate config for crypto
+mode: "paper"
+
+watchlist: []  # No stocks
+
+crypto_watchlist:
+  - "BTC/USD"
+  - "ETH/USD"
+  - "DOGE/USD"
+
+allocation:
+  allow_fractional: true  # Required for crypto!
+
+entries:
+  tif: "GTC"              # No market close for crypto
+  cancel_at_close: false
 ```
 
-## 🔧 Advanced Usage
-
-### Custom Watchlist Management
-
-```python
-# Dynamic watchlist from file
-with open('watchlist.txt') as f:
-    config['watchlist'] = [line.strip().upper() for line in f]
-```
+See **[docs/CRYPTO_GUIDE.md](docs/CRYPTO_GUIDE.md)** for full crypto setup.
 
 ### Symbol-Specific Allocation
 
 ```yaml
 allocation:
+  per_symbol_usd: 1000     # Default
   per_symbol_override:
-    TSLA: 1500    # More for high-conviction plays
-    NVDA: 1200
-    # Others use default 1000
+    TSLA: 1500             # More for high-conviction
+    BTC/USD: 2000          # More for Bitcoin
 ```
 
-### Fractional Shares
-
-```yaml
-allocation:
-  allow_fractional: true  # Enable if your account supports it
-```
-
-### Multiple Accounts
-
-```yaml
-ibkr:
-  account: "U1234567"     # Specify account ID
-```
-
-## 🛡️ Safety Features
-
-### Automatic Safeguards
-
-1. **Connection Keep-Alive**: Pings IBKR every 5 minutes to prevent timeout
-2. **Connection Loss**: Bot stops placing orders until reconnected
-3. **Data Staleness**: Skips symbols with stale price data
-4. **Corporate Actions**: Detects quantity mismatches and adjusts stops
-5. **Rate Limiting**: Built-in throttling on API calls
-6. **Exponential Backoff**: On API errors
-
-### Manual Controls
+### Multiple Configs
 
 ```bash
-# Graceful shutdown (Ctrl+C)
-# - Closes IBKR connection cleanly
-# - Logs shutdown event
-# - Does NOT cancel existing orders
-
-# Emergency stop (kill bot + cancel all orders)
-# - Stop bot: Ctrl+C or kill <pid>
-# - Use TWS/IB Gateway to cancel orders manually
+# Run with custom config
+./run.sh config.crypto.yaml
+./run.sh my_aggressive_config.yaml
 ```
 
-### Order Verification
-
-Before going live:
-1. Test in **paper trading** mode for at least 1 week
-2. Review `bot.db` to verify order logic
-3. Start with **small allocations** (e.g., $100/symbol)
-4. Monitor first few trades closely
+---
 
 ## 🐛 Troubleshooting
 
 ### Common Issues
 
-**Connection refused (port 5000)**
-- Ensure IB Gateway is running
-- Check port in Gateway settings
-- Verify API connections enabled
+**"No such file: config.yaml"**
+```bash
+# Copy from template
+cp config.yaml.example config.yaml
+cp secrets.yaml.example secrets.yaml
+```
 
-**"No market data" errors**
-- Subscribe to market data in TWS/Gateway
-- Real-time data requires subscriptions
-- Use paper account for testing
+**"Invalid API key" or "Unauthorized"**
+- Verify you copied the full API key (no spaces)
+- Check you're using **Paper Trading** keys (start with `PK`)
+- Regenerate keys in Alpaca dashboard if needed
 
 **Orders not placing**
-- Check market hours (must be RTH)
-- Verify sufficient buying power
+- Check market hours (stocks trade 9:30 AM - 4:00 PM ET only)
+- Verify sufficient buying power in your account
 - Review logs for exposure limit warnings
+- Check if in cooldown period: `sqlite3 bot.db "SELECT * FROM state"`
 
-**Cooldown too aggressive**
-- Adjust `after_stopout_minutes` in config
-- Check database for stuck cooldowns:
-  ```sql
-  UPDATE state SET cooldown_until_ts = NULL;
-  ```
+**Bot stops trading mid-day**
+- Check if circuit breaker triggered (daily loss limit)
+- Review logs for "circuit breaker" or "daily_loss" messages
+- Limits reset at start of next trading day
 
 ### Debug Mode
 
@@ -496,83 +493,107 @@ sqlite3 bot.db "SELECT * FROM state"
 # View recent orders
 sqlite3 bot.db "SELECT * FROM orders ORDER BY created_at DESC LIMIT 10"
 
-# Audit trail
-sqlite3 bot.db "SELECT event_type, symbol, ts FROM events ORDER BY ts DESC LIMIT 20"
+# Check cooldowns
+sqlite3 bot.db "SELECT symbol, cooldown_until_ts FROM state WHERE cooldown_until_ts > datetime('now')"
 ```
 
-## 📈 Performance Tracking
+---
 
-The bot includes comprehensive P&L analytics:
+## 🧪 Testing
 
-### View Performance Report
 ```bash
-python scripts/show_performance.py
+# Run all tests
+pytest
+
+# Run specific test file
+pytest tests/test_state_machine.py
+
+# Run with coverage
+pytest --cov=src --cov-report=html
 ```
 
-Shows:
-- **Account Summary**: Real-time values from IBKR
-- **Overall Statistics**: Win rate, total P&L, Sharpe ratio, max drawdown
-- **Per-Symbol Performance**: Breakdown by ticker
-- **Daily P&L**: Recent trading days
+---
 
-### Export Trades
-```bash
-python scripts/export_trades.py
-```
+## 📚 Documentation
 
-Exports all trades to CSV with:
-- Entry/exit prices and timestamps
-- P&L per trade ($ and %)
-- Trade duration
-- Win/loss classification
+All documentation is in the `/docs` folder:
 
-### Key Metrics Tracked
+### 🚀 Getting Started
+- **[QUICKSTART.md](docs/QUICKSTART.md)** - 5-minute setup guide
+- **[CONFIGURATION.md](docs/CONFIGURATION.md)** - Complete config reference
+- **[SETUP_SECRETS.md](docs/SETUP_SECRETS.md)** - API key setup
 
-- **Win Rate**: % of profitable trades
-- **Profit Factor**: Gross profit / gross loss ratio
-- **Sharpe Ratio**: Risk-adjusted returns
-- **Max Drawdown**: Largest peak-to-trough decline
-- **Expectancy**: Average profit per trade
-- **Average Trade Duration**: Typical holding period
+### 📖 Guides
+- **[CRYPTO_GUIDE.md](docs/CRYPTO_GUIDE.md)** - 24/7 cryptocurrency trading
+- **[UPDATING_CONFIG.md](docs/UPDATING_CONFIG.md)** - How to merge config updates
+- **[RESET_GUIDE.md](docs/RESET_GUIDE.md)** - Reset paper account
 
-See **`PERFORMANCE_GUIDE.md`** for detailed documentation.
+### 🔧 Technical
+- **[API_GUIDE.md](docs/API_GUIDE.md)** - REST API documentation
+- **[BOT_REFERENCE.md](docs/BOT_REFERENCE.md)** - Complete bot functionality
+- **[CHANGELOG.md](docs/CHANGELOG.md)** - Version history
 
-### Performance Notes
+### 🚀 Deployment
+- **[UBUNTU_DEPLOYMENT.md](docs/UBUNTU_DEPLOYMENT.md)** - Deploy to Ubuntu server
+- **[DEPLOY_TO_SERVER.md](docs/DEPLOY_TO_SERVER.md)** - General server deployment
 
-- **Latency**: Orders typically placed within 1-2 seconds of trigger
-- **Resource Usage**: Minimal (~50MB RAM, <1% CPU)
-- **Scalability**: Handles 20+ symbols comfortably
-- **Reliability**: Designed for 24/7 operation
-- **Analytics**: Automated daily snapshots for historical tracking
+See **[docs/INDEX.md](docs/INDEX.md)** for complete documentation index.
 
-## 🔄 Upgrading
+---
+
+## 🔄 Updating
+
+When you pull new code updates:
 
 ```bash
-# Backup database
-cp bot.db bot.db.backup
-
-# Pull updates
+# Your local configs are gitignored - safe from overwrites!
 git pull
+
+# Merge new features into your config
+python3 merge_config.py
+
+# Or see what changed
+./update_config.sh
 
 # Update dependencies
 pip install -r requirements.txt --upgrade
-
-# Restart bot
-./run.sh
 ```
 
-## 📝 License
+See **[docs/UPDATING_CONFIG.md](docs/UPDATING_CONFIG.md)** for detailed guide.
 
-This is a custom trading bot. Use at your own risk. Not financial advice.
+---
 
-## ⚠️ Disclaimer
+## 🛡️ Safety & Best Practices
 
-**IMPORTANT**: 
+### Before Going Live
+
+1. ✅ Test in **paper trading** for at least 1 week
+2. ✅ Review `bot.db` to verify order logic
+3. ✅ Start with **small allocations** ($100/symbol)
+4. ✅ Monitor first few trades closely
+5. ✅ Understand cooldown behavior (24hr after stop-out)
+6. ✅ Set appropriate risk limits (daily loss, position limits)
+
+### Risk Disclaimer
+
+⚠️ **IMPORTANT**: 
 - Trading involves substantial risk of loss
 - Past performance does not guarantee future results
-- Test thoroughly in paper trading before going live
-- The authors are not responsible for any losses incurred
 - This bot is for educational purposes
+- Test thoroughly before risking real capital
+- The authors are not responsible for any losses incurred
+
+---
+
+## 📈 Performance Notes
+
+- **Latency**: Orders typically placed within 1-2 seconds
+- **Resource Usage**: ~50MB RAM, <1% CPU
+- **Scalability**: Handles 20+ symbols comfortably
+- **Reliability**: Designed for 24/7 operation
+- **API Limits**: Respects Alpaca rate limits (200 req/min)
+
+---
 
 ## 🤝 Contributing
 
@@ -583,61 +604,25 @@ Contributions welcome! Please:
 4. Ensure all tests pass: `pytest`
 5. Submit a pull request
 
-## 🔄 Recent Updates
-
-### v1.2.0 - Safety Features (Nov 21, 2024) 🛡️
-
-**Phase 1 Quick Wins Implemented:**
-- ✅ **Daily drawdown limit** - Circuit breaker stops trading if daily loss > 3% or $500
-- ✅ **Session time filters** - Skip first 5 min after open & last 10 min before close
-- ✅ **Position limits** - Max 5 concurrent positions
-- ✅ **Enhanced metrics** - New `/metrics` API endpoint
-
-### v1.1.0 - Trailing Stop & Cooldown Fixes
-
-- ✅ Trailing stops with retry logic (up to 3 attempts)
-- ✅ Extended cooldown to 1 day after stop-outs
-
-📖 **See full details:** [docs/CHANGELOG.md](docs/CHANGELOG.md)
-
 ---
-
-## 📚 Documentation
-
-All documentation is organized in the `/docs` directory:
-
-### Essential Guides
-- **[Quick Start Guide](docs/QUICKSTART.md)** - Get started in 5 minutes
-- **[Bot Reference](docs/BOT_REFERENCE.md)** - Complete bot functionality
-- **[API Guide](docs/API_GUIDE.md)** - REST API for remote monitoring
-- **[Reset Guide](docs/RESET_GUIDE.md)** - How to reset transactions and start over
-
-### Crypto Trading
-- **[Crypto Guide](docs/CRYPTO_GUIDE.md)** - Complete crypto trading setup
-- **[Crypto Symbols](docs/CRYPTO_SYMBOLS.md)** - Supported cryptocurrency pairs
-- **[Crypto Limitations](docs/CRYPTO_LIMITATIONS.md)** - Known limitations
-
-### Deployment
-- **[Ubuntu Deployment](docs/UBUNTU_DEPLOYMENT.md)** - Deploy to Ubuntu server
-- **[Deploy to Server](docs/DEPLOY_TO_SERVER.md)** - General server deployment
-
-### Technical
-- **[Documentation Index](docs/INDEX.md)** - Complete documentation index
-- **[Architecture](docs/DOCUMENTATION.md)** - Technical architecture details
-- **[Changelog](docs/CHANGELOG.md)** - Version history
-
-See **[docs/INDEX.md](docs/INDEX.md)** for the complete documentation index.
 
 ## 📞 Support
 
 For issues:
 1. Check logs: `tail -f bot.log | jq .`
-2. Review database: `sqlite3 bot.db`
-3. See troubleshooting in [docs/BOT_REFERENCE.md](docs/BOT_REFERENCE.md)
-4. Check recent fixes in [docs/CHANGELOG.md](docs/CHANGELOG.md)
-5. File an issue with logs and config (redact sensitive data)
+2. Review database: `sqlite3 bot.db "SELECT * FROM state"`
+3. See troubleshooting section above
+4. Check [docs/CHANGELOG.md](docs/CHANGELOG.md) for recent fixes
+5. File an issue with logs and config (redact API keys!)
+
+---
+
+## 📝 License
+
+MIT License - Use at your own risk. Not financial advice.
 
 ---
 
 **Happy Trading! 🚀📈**
 
+*Trade smart. Trade safe. Test first.* ✅
