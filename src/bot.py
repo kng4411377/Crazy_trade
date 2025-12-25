@@ -1,11 +1,13 @@
 """Main bot orchestrator."""
 
 import asyncio
-from datetime import datetime, timedelta
-from typing import Dict, Optional
+from datetime import datetime
+from typing import Dict, Optional, List
 import signal
 import sys
 import structlog
+import yaml
+from pathlib import Path
 
 from alpaca.trading.enums import OrderType
 
@@ -50,6 +52,11 @@ class TradingBot:
                 symbol, config, self.alpaca, self.db, self.sizer
             )
         
+        # Momentum filter (hybrid integration)
+        self.momentum_filter = None
+        self.momentum_filter_config = self._load_momentum_filter_config()
+        self.active_symbols: List[str] = all_symbols  # Will be filtered at start()
+        
         # Performance tracker
         self.performance = PerformanceTracker(self.db, self.alpaca)
         
@@ -88,6 +95,9 @@ class TradingBot:
         # Connect to Alpaca
         await self.alpaca.connect()
         
+        # Initialize and apply momentum filter
+        await self._initialize_momentum_filter()
+        
         self.running = True
         
         # Log initial state
@@ -99,6 +109,8 @@ class TradingBot:
                     "mode": self.config.mode,
                     "stock_watchlist": self.config.watchlist,
                     "crypto_watchlist": self.config.crypto_watchlist,
+                    "active_symbols": self.active_symbols,
+                    "momentum_filter_enabled": self.momentum_filter_config.get('enabled', False) if self.momentum_filter_config else False,
                 },
             )
         
@@ -118,10 +130,114 @@ class TradingBot:
         
         await self.alpaca.disconnect()
         
+        # Clean up momentum filter
+        if self.momentum_filter:
+            try:
+                await self.momentum_filter.close()
+            except Exception as e:
+                logger.error("momentum_filter_close_error", error=str(e))
+        
         with self.db.get_session() as session:
             self.db.add_event(session, event_type="bot_stopped")
         
         logger.info("trading_bot_stopped")
+
+    def _load_momentum_filter_config(self) -> Optional[Dict]:
+        """Load momentum filter configuration from momentum_config.yaml."""
+        try:
+            config_path = Path("momentum_config.yaml")
+            if not config_path.exists():
+                logger.info("momentum_config_not_found", path=str(config_path))
+                return None
+            
+            with open(config_path, 'r') as f:
+                momentum_config = yaml.safe_load(f)
+            
+            filter_config = momentum_config.get('momentum_layer', {}).get('filter', {})
+            
+            if not filter_config:
+                logger.info("momentum_filter_config_not_found")
+                return None
+            
+            logger.info(
+                "momentum_filter_config_loaded",
+                enabled=filter_config.get('enabled', False),
+                min_score=filter_config.get('min_score', 0),
+            )
+            
+            return filter_config
+            
+        except Exception as e:
+            logger.error("momentum_filter_config_load_error", error=str(e))
+            return None
+    
+    async def _initialize_momentum_filter(self):
+        """Initialize momentum filter and apply to watchlist."""
+        if not self.momentum_filter_config or not self.momentum_filter_config.get('enabled', False):
+            logger.info("momentum_filter_disabled", active_symbols=len(self.active_symbols))
+            return
+        
+        try:
+            # Import here to avoid circular dependency
+            from src.momentum.filter import MomentumFilter
+            
+            logger.info("momentum_filter_initializing")
+            
+            # Create filter
+            self.momentum_filter = MomentumFilter(self.momentum_filter_config)
+            
+            # Initialize (async)
+            success = await self.momentum_filter.initialize()
+            
+            if not success:
+                logger.error("momentum_filter_init_failed")
+                self.momentum_filter = None
+                return
+            
+            # Filter stocks only (keep crypto untouched)
+            stock_symbols = self.config.watchlist
+            crypto_symbols = self.config.crypto_watchlist
+            
+            if stock_symbols:
+                logger.info("momentum_filter_applying", stock_count=len(stock_symbols))
+                
+                filtered_stocks = await self.momentum_filter.filter_symbols(stock_symbols)
+                
+                # Update active symbols
+                self.active_symbols = filtered_stocks + crypto_symbols
+                
+                filtered_out = [s for s in stock_symbols if s not in filtered_stocks]
+                
+                logger.info(
+                    "momentum_filter_applied",
+                    original_stocks=len(stock_symbols),
+                    filtered_stocks=len(filtered_stocks),
+                    crypto_count=len(crypto_symbols),
+                    total_active=len(self.active_symbols),
+                    filtered_out=filtered_out
+                )
+                
+                # Log to database
+                with self.db.get_session() as session:
+                    self.db.add_event(
+                        session,
+                        event_type="momentum_filter_applied",
+                        payload={
+                            "original_stocks": stock_symbols,
+                            "filtered_stocks": filtered_stocks,
+                            "filtered_out": filtered_out,
+                            "filter_config": self.momentum_filter_config
+                        }
+                    )
+            else:
+                logger.info("momentum_filter_no_stocks")
+                
+        except ImportError as e:
+            logger.error("momentum_filter_import_error", error=str(e))
+            self.momentum_filter = None
+        except Exception as e:
+            logger.error("momentum_filter_error", error=str(e), exc_info=True)
+            self.momentum_filter = None
 
     def _signal_handler(self, signum, frame):
         """Handle shutdown signals."""
@@ -197,8 +313,12 @@ class TradingBot:
         # Check if we can add new positions
         can_add_position = self._check_position_limit_ok(positions)
         
-        # Process each symbol
-        for symbol, sm in self.state_machines.items():
+        # Process each ACTIVE symbol (filtered by momentum)
+        for symbol in self.active_symbols:
+            sm = self.state_machines.get(symbol)
+            if not sm:
+                continue  # Symbol not in state machines
+            
             try:
                 # Skip stocks if market is closed
                 is_crypto = self.config.is_crypto_symbol(symbol)
@@ -486,8 +606,7 @@ class TradingBot:
         
         order = order_wrapper.order
         side = order.side.value.upper()
-        order_id = str(order.id)  # Convert UUID to string
-        
+        order_id = str(order.id)        
         logger.info(
             "fill_received",
             symbol=symbol,
@@ -559,8 +678,7 @@ class TradingBot:
     def _on_order_status(self, order_wrapper: AlpacaOrder):
         """Handle order status updates."""
         symbol = order_wrapper.contract.symbol
-        order_id = str(order_wrapper.order.id)  # Convert UUID to string
-        status = order_wrapper.orderStatus.status
+        order_id = str(order_wrapper.order.id)        status = order_wrapper.orderStatus.status
         
         logger.debug(
             "order_status_update",

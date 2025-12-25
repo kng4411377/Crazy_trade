@@ -1,0 +1,55 @@
+# Environment Variables for Momentum Intelligence Layer
+# Copy this content to a file named .env in the project root
+# The .env file is gitignored and will NOT be committed
+
+# === Core Providers (Recommended) ===
+
+# Alpha Vantage - Price, volume, technical data
+# Get key at: https://www.alphavantage.co/support/#api-key
+ALPHAVANTAGE_API_KEY=your_alphavantage_key_here
+
+# StockTwits via RapidAPI - Social sentiment
+# Get key at: https://rapidapi.com/ (search for "StockTwits")
+RAPIDAPI_KEY=your_rapidapi_key_here
+STOCKTWITS_USE_RAPIDAPI=true
+
+# Legacy: Direct StockTwits API (if you have access)
+# STOCKTWITS_ACCESS_TOKEN=your_token_here
+
+# === Optional Providers ===
+
+# Marketstack - Alternative price data
+# MARKETSTACK_API_KEY=your_key_here
+
+# MarketData.app - Options data
+# MARKETDATA_APP_API_KEY=your_key_here
+
+# ValueInvesting.io - Short interest
+# VALUEINVESTING_API_KEY=your_key_here
+
+# === Premium Providers (Optional) ===
+
+# Unusual Whales - Options flow
+# UNUSUALWHALES_API_KEY=your_key_here
+
+# Optionomics - Options analytics
+# OPTIONOMICS_API_KEY=your_key_here
+
+# S3 Partners - Borrow cost
+# S3_API_KEY=your_key_here
+# S3_API_SECRET=your_secret_here
+
+# Gamma/GEX Provider
+# GEX_API_KEY=your_key_here
+
+# Twitter/X API
+# TWITTER_API_KEY=your_key_here
+# TWITTER_API_SECRET=your_secret_here
+# TWITTER_BEARER_TOKEN=your_token_here
+
+# === Database (if using external DB) ===
+# DATABASE_URL=sqlite:///bot.db
+
+# === Logging ===
+# LOG_LEVEL=INFO
+

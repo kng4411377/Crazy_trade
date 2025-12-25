@@ -48,6 +48,7 @@ python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 cp config.yaml.example config.yaml
+cp momentum_config.yaml.example momentum_config.yaml
 cp secrets.yaml.example secrets.yaml
 ```
 
@@ -95,7 +96,7 @@ cooldowns:
   after_stopout_minutes: 1440      # Wait 24hr after stop-out (prevents revenge trading)
 ```
 
-⚠️ **Security**: `config.yaml` and `secrets.yaml` are gitignored - safe from commits!
+⚠️ **Security**: `config.yaml`, `momentum_config.yaml`, and `secrets.yaml` are gitignored - safe from commits!
 
 ### Running the Bot
 
@@ -233,6 +234,8 @@ qty = floor(per_symbol_usd / last_price)
 crazy_trade/
 ├── config.yaml              # Your local config (gitignored)
 ├── config.yaml.example      # Template (committed to git)
+├── momentum_config.yaml     # Momentum layer config (gitignored)
+├── momentum_config.yaml.example  # Template (committed to git)
 ├── secrets.yaml             # Your API keys (gitignored)
 ├── main.py                  # Entry point
 ├── requirements.txt         # Dependencies
@@ -460,6 +463,7 @@ allocation:
 ```bash
 # Copy from template
 cp config.yaml.example config.yaml
+cp momentum_config.yaml.example momentum_config.yaml
 cp secrets.yaml.example secrets.yaml
 ```
 
@@ -549,7 +553,10 @@ When you pull new code updates:
 # Your local configs are gitignored - safe from overwrites!
 git pull
 
-# Merge new features into your config
+# Merge new features into all your configs (config.yaml, momentum_config.yaml)
+python3 merge_config.py
+
+# Or review changes manually
 python3 merge_config.py
 
 # Or see what changed

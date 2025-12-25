@@ -75,6 +75,25 @@ docs/
 - Log filtering
 - Quick diagnostics
 
+### Momentum Intelligence Layer 🚀
+
+**[momentum/README.md](momentum/README.md)** - Momentum layer overview
+- Dynamic stock discovery and ranking
+- Multi-phase momentum analysis
+- Reddit + Volume signals
+- Trading strategy guides
+
+**[momentum/QUICKSTART.md](momentum/QUICKSTART.md)** - Get started with momentum scanning
+- Setup providers (YFinance, Apewisdom)
+- Run your first scan
+- Interpret results
+
+**[momentum/STRATEGY.md](momentum/STRATEGY.md)** - Multi-phase trading strategy
+- Why simple averaging misses opportunities
+- Early signal detection (Reddit buzz pre-volume)
+- Volume confirmation strategies
+- 4-phase momentum workflow
+
 ### Specialized Topics
 
 **[CRYPTO_GUIDE.md](CRYPTO_GUIDE.md)** - 24/7 cryptocurrency trading
@@ -133,12 +152,13 @@ docs/
 - Breaking changes
 - Migration guides
 
-**[MOMENTUM_LAYER_REQUIREMENTS.md](MOMENTUM_LAYER_REQUIREMENTS.md)** - 🚧 Planned Feature
-- Dynamic watchlist / momentum intelligence
-- Multi-factor scoring system
-- External API providers & requirements
-- Environment variable specifications
-- Implementation roadmap & cost estimates
+**Momentum Intelligence Layer** - Dynamic Momentum Scanning 🚀
+- **[momentum/README.md](momentum/README.md)** - Momentum documentation index
+- **[momentum/QUICKSTART.md](momentum/QUICKSTART.md)** - Quick setup guide
+- **[momentum/STRATEGY.md](momentum/STRATEGY.md)** - Multi-phase trading strategy
+- **[momentum/APEWISDOM_SETUP.md](momentum/APEWISDOM_SETUP.md)** - Reddit sentiment setup
+- **[MOMENTUM_CONFIG_GUIDE.md](MOMENTUM_CONFIG_GUIDE.md)** - Configuration reference
+- **[MOMENTUM_LAYER_REQUIREMENTS.md](MOMENTUM_LAYER_REQUIREMENTS.md)** - Technical specification
 
 ---
 
@@ -178,6 +198,8 @@ docs/
 | Entry strategies | [CONFIGURATION.md](CONFIGURATION.md#entry-strategies) |
 | Stock trading | [BOT_REFERENCE.md](BOT_REFERENCE.md) |
 | Crypto trading | [CRYPTO_GUIDE.md](CRYPTO_GUIDE.md) |
+| Momentum scanning | [momentum/README.md](momentum/README.md) 🚀 |
+| Multi-phase momentum | [momentum/STRATEGY.md](momentum/STRATEGY.md) |
 | Risk management | [CONFIGURATION.md](CONFIGURATION.md#risk-management) |
 
 ### Operation & Monitoring
@@ -238,6 +260,12 @@ docs/
 
 **...understand cooldown periods**
 → [BOT_REFERENCE.md](BOT_REFERENCE.md) → Cooldown section
+
+**...scan for momentum stocks** 🚀
+→ [momentum/QUICKSTART.md](momentum/QUICKSTART.md)
+
+**...catch early Reddit signals**
+→ [momentum/STRATEGY.md](momentum/STRATEGY.md) → Early Signals section
 
 **...see what changed in updates**
 → [CHANGELOG.md](CHANGELOG.md)
@@ -314,5 +342,5 @@ When adding new documentation:
 
 ---
 
-Last Updated: 2024-12-16  
-Version: 1.3.0 (with entry strategies & config separation)
+Last Updated: 2024-12-22  
+Version: 1.4.0 (with Momentum Intelligence Layer)

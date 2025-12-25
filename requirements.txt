@@ -39,3 +39,9 @@ pytz>=2023.3
 Flask>=3.0.0
 requests>=2.31.0
 
+# Momentum Intelligence Layer
+aiohttp>=3.8.5
+python-dotenv>=1.0.0
+yfinance>=0.2.32,<1.0  # Pin to 0.x for Python 3.9 compatibility
+pytrends>=4.9.0
+

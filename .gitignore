@@ -52,6 +52,10 @@ config.local.yaml
 # Local config files (use *.example templates instead)
 config.yaml
 config.crypto.yaml
+momentum_config.yaml
+
+# Environment variables (API keys and secrets)
+.env
 
 # OS
 .DS_Store

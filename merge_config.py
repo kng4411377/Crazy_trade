@@ -57,29 +57,34 @@ def merge_configs(template: Dict, current: Dict) -> Dict[str, Any]:
     return merged
 
 
-def main():
-    """Main entry point."""
-    print("🔄 Smart Config Merger")
+def merge_config_file(config_name: str) -> bool:
+    """Merge a specific config file.
+    
+    Args:
+        config_name: Name of config file (e.g., 'config.yaml', 'momentum_config.yaml')
+        
+    Returns:
+        True if merged successfully
+    """
+    print(f"\n📝 Processing {config_name}")
     print("━" * 50)
-    print()
     
     # Paths
-    current_path = Path("config.yaml")
-    template_path = Path("config.yaml.example")
-    backup_path = Path("config.yaml.backup")
+    current_path = Path(config_name)
+    template_path = Path(f"{config_name}.example")
+    backup_path = Path(f"{config_name}.backup")
     
     # Check files exist
     if not template_path.exists():
-        print("❌ config.yaml.example not found!")
-        sys.exit(1)
+        print(f"⚠️  {template_path} not found - skipping")
+        return False
     
     if not current_path.exists():
-        print("📝 No existing config.yaml found.")
+        print(f"📝 No existing {config_name} found.")
         print("   Creating from template...")
-        template_path.read_text()
         current_path.write_text(template_path.read_text())
-        print("✅ config.yaml created! Please customize it.")
-        sys.exit(0)
+        print(f"✅ {config_name} created! Please customize it.")
+        return True
     
     # Load configs
     print("📖 Loading configurations...")
@@ -95,8 +100,8 @@ def main():
     new_keys = find_new_keys(template, current)
     
     if not new_keys:
-        print("✅ Your config is up to date! No new fields to add.")
-        sys.exit(0)
+        print("✅ This config is up to date! No new fields to add.")
+        return True
     
     # Show new keys
     print()
@@ -106,14 +111,14 @@ def main():
     print()
     
     # Ask for confirmation
-    response = input("🤔 Merge new fields into your config? (y/n): ").strip().lower()
+    response = input(f"🤔 Merge new fields into {config_name}? (y/n): ").strip().lower()
     
     if response != 'y':
         print("❌ Merge cancelled.")
         print()
         print("💡 To review changes manually:")
-        print("   ./update_config.sh")
-        sys.exit(0)
+        print(f"   diff {config_name} {template_path}")
+        return False
     
     # Backup current config
     print()
@@ -131,20 +136,65 @@ def main():
     
     print()
     print("━" * 50)
-    print("✅ Config updated successfully!")
-    print()
-    print("📋 Next steps:")
-    print("  1. Review config.yaml for new fields")
-    print("  2. Customize new settings as needed")
-    print("  3. Check config.yaml.example for detailed comments")
-    print()
-    print("💡 New features in this version:")
-    print("  • entry_price_strategy - Use SMA or opening price")
-    print("  • sma_periods - Configure SMA period")
-    print("  • tif - Configurable time-in-force")
+    print(f"✅ {config_name} updated successfully!")
     print()
     print(f"🔙 Rollback available at: {backup_path}")
+    return True
+
+
+def main():
+    """Main entry point."""
+    print("🔄 Smart Config Merger")
+    print("━" * 50)
     print()
+    print("This tool merges new features from .example templates")
+    print("into your local config files while preserving your settings.")
+    print()
+    
+    # List of config files to merge
+    configs_to_merge = [
+        "config.yaml",
+        "momentum_config.yaml",
+    ]
+    
+    # Track results
+    results = {}
+    
+    for config_name in configs_to_merge:
+        try:
+            success = merge_config_file(config_name)
+            results[config_name] = success
+        except Exception as e:
+            print(f"\n❌ Error processing {config_name}: {e}")
+            results[config_name] = False
+    
+    # Summary
+    print("\n" + "━" * 50)
+    print("📊 SUMMARY")
+    print("━" * 50)
+    
+    for config_name, success in results.items():
+        if success:
+            print(f"  ✅ {config_name}")
+        elif success is None:
+            print(f"  ⚠️  {config_name} (skipped - no template)")
+        else:
+            print(f"  ❌ {config_name} (failed or cancelled)")
+    
+    print()
+    print("📋 Next steps:")
+    print("  1. Review updated config files for new fields")
+    print("  2. Customize new settings as needed")
+    print("  3. Check .example files for detailed comments")
+    print()
+    
+    # Check if any configs were actually updated
+    if any(results.values()):
+        print("💡 Recent features added:")
+        print("  • entry_price_strategy - Use SMA or opening price")
+        print("  • momentum_layer - Dynamic watchlist generation")
+        print("  • tif - Configurable time-in-force")
+        print()
 
 
 if __name__ == "__main__":

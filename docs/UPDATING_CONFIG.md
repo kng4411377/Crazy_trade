@@ -1,6 +1,11 @@
 # Updating Your Config with New Features
 
-When you pull new code updates, the `config.yaml.example` template may have new features or fields. This guide shows you how to merge those updates into your existing `config.yaml` without losing your custom settings.
+When you pull new code updates, the `.example` templates may have new features or fields. This guide shows you how to merge those updates into your local config files without losing your custom settings.
+
+**Applies to:**
+- `config.yaml` (main bot configuration)
+- `momentum_config.yaml` (momentum intelligence layer)
+- Any future config files
 
 ## 🎯 Quick Answer
 
@@ -26,10 +31,11 @@ python3 merge_config.py
 ```
 
 **What it does:**
-- ✅ Detects new fields in template
-- ✅ Adds them to your config with defaults
+- ✅ Merges ALL config files (config.yaml, momentum_config.yaml, etc.)
+- ✅ Detects new fields in each template
+- ✅ Adds them to your configs with defaults
 - ✅ Preserves ALL your existing values
-- ✅ Creates automatic backup
+- ✅ Creates automatic backups
 - ✅ Shows what changed
 
 **Example output:**
@@ -37,24 +43,27 @@ python3 merge_config.py
 🔄 Smart Config Merger
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📖 Loading configurations...
+📝 Processing config.yaml
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🔍 Analyzing differences...
 
 📝 Found 2 new field(s):
   • entries.entry_price_strategy
   • entries.sma_periods
 
-🤔 Merge new fields into your config? (y/n): y
+🤔 Merge new fields into config.yaml? (y/n): y
 
-💾 Creating backup...
-   ✅ Backed up to config.yaml.backup
+✅ config.yaml updated successfully!
 
-🔧 Merging configurations...
-  ✅ Added new field: entry_price_strategy
-  ✅ Added new field: sma_periods
+📝 Processing momentum_config.yaml
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ This config is up to date! No new fields to add.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ Config updated successfully!
+📊 SUMMARY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ✅ config.yaml
+  ✅ momentum_config.yaml
 ```
 
 ---
@@ -77,8 +86,11 @@ Shows side-by-side differences and suggests next steps.
 
 1. **View differences:**
    ```bash
-   # Simple diff
+   # For main config
    diff config.yaml config.yaml.example
+   
+   # For momentum config
+   diff momentum_config.yaml momentum_config.yaml.example
    
    # Better formatting
    diff -u config.yaml config.yaml.example | less
@@ -88,6 +100,7 @@ Shows side-by-side differences and suggests next steps.
    ```bash
    # In VS Code
    code --diff config.yaml config.yaml.example
+   code --diff momentum_config.yaml momentum_config.yaml.example
    
    # In Vim
    vimdiff config.yaml config.yaml.example
@@ -97,8 +110,8 @@ Shows side-by-side differences and suggests next steps.
    ```
 
 3. **Manually add new fields:**
-   - Open `config.yaml` in your editor
-   - Review `config.yaml.example` for new fields
+   - Open your config file in your editor
+   - Review the `.example` file for new fields
    - Copy the new fields you want
    - Paste into appropriate sections
 

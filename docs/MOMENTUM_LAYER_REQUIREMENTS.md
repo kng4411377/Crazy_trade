@@ -64,10 +64,12 @@ For production-grade signals:
 ALPHAVANTAGE_API_KEY=your_key_here
 MARKETSTACK_API_KEY=your_key_here
 
-# === Social Sentiment ===
-STOCKTWITS_CLIENT_ID=your_client_id
-STOCKTWITS_CLIENT_SECRET=your_client_secret
-STOCKTWITS_ACCESS_TOKEN=your_access_token
+# === Social Sentiment (via RapidAPI - Free Tier Available) ===
+RAPIDAPI_KEY=your_rapidapi_key_here
+STOCKTWITS_USE_RAPIDAPI=true  # Use RapidAPI (recommended)
+
+# === Social Sentiment (Direct API - Legacy, may not be available) ===
+# STOCKTWITS_ACCESS_TOKEN=your_access_token  # Only if you have direct API access
 
 # === Options Data (Basic) ===
 MARKETDATA_APP_API_KEY=your_key_here

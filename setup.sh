@@ -44,6 +44,18 @@ else
     echo "✅ config.yaml already exists"
 fi
 
+if [ ! -f "momentum_config.yaml" ]; then
+    if [ -f "momentum_config.yaml.example" ]; then
+        echo "📝 Creating momentum_config.yaml from template..."
+        cp momentum_config.yaml.example momentum_config.yaml
+        echo "   ✅ momentum_config.yaml created (momentum layer disabled by default)"
+    else
+        echo "⚠️  Warning: momentum_config.yaml.example not found"
+    fi
+else
+    echo "✅ momentum_config.yaml already exists"
+fi
+
 if [ ! -f "secrets.yaml" ]; then
     if [ -f "secrets.yaml.example" ]; then
         echo "📝 Creating secrets.yaml from template..."

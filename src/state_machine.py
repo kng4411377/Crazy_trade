@@ -126,16 +126,15 @@ class SymbolStateMachine:
                 self.db.upsert_symbol_state(
                     session,
                     self.symbol,
-                    last_parent_id=str(parent_order.order.id),  # Convert UUID to string
-                    last_trail_id=None,  # Will be set after entry fills
+                    last_parent_id=str(parent_order.order.id),
+                    last_trail_id=None,
                 )
                 
                 # Record order in DB
                 order = parent_order.order
                 self.db.add_order(
                     session,
-                    order_id=str(order.id),  # Convert UUID to string
-                    symbol=self.symbol,
+                    order_id=str(order.id),                    symbol=self.symbol,
                     side="BUY",
                     order_type=order.type.value,
                     status=order.status.value,
@@ -151,7 +150,7 @@ class SymbolStateMachine:
                     event_type="entry_order_placed",
                     symbol=self.symbol,
                     payload={
-                        "order_id": str(order.id),  # Convert UUID to string
+                        "order_id": str(order.id),
                         "qty": qty,
                         "last_price": last_price,
                     },
@@ -197,14 +196,12 @@ class SymbolStateMachine:
                         self.db.upsert_symbol_state(
                             session,
                             self.symbol,
-                            last_trail_id=str(order_wrapper.order.id),  # Convert UUID to string
-                        )
+                            last_trail_id=str(order_wrapper.order.id),                        )
                         self.db.add_event(
                             session,
                             event_type="trailing_stop_recreated",
                             symbol=self.symbol,
-                            payload={"order_id": str(order_wrapper.order.id), "qty": position_qty},  # Convert UUID to string
-                        )
+                            payload={"order_id": str(order_wrapper.order.id), "qty": position_qty},                        )
         elif len(trailing_stops) > 1:
             # Multiple stops - cancel duplicates (keep the first one)
             logger.warning("duplicate_trailing_stops", symbol=self.symbol, count=len(trailing_stops))
@@ -215,8 +212,7 @@ class SymbolStateMachine:
                         session,
                         event_type="duplicate_stop_cancelled",
                         symbol=self.symbol,
-                        payload={"order_id": str(order_wrapper.order.id)},  # Convert UUID to string
-                    )
+                        payload={"order_id": str(order_wrapper.order.id)},                    )
         else:
             # Verify quantity matches
             stop_wrapper = trailing_stops[0]
@@ -241,8 +237,7 @@ class SymbolStateMachine:
                             self.db.upsert_symbol_state(
                                 session,
                                 self.symbol,
-                                last_trail_id=str(order_wrapper.order.id),  # Convert UUID to string
-                            )
+                                last_trail_id=str(order_wrapper.order.id),                            )
                             self.db.add_event(
                                 session,
                                 event_type="trailing_stop_adjusted",
@@ -250,8 +245,7 @@ class SymbolStateMachine:
                                 payload={
                                     "old_qty": stop_qty,
                                     "new_qty": position_qty,
-                                    "order_id": str(order_wrapper.order.id),  # Convert UUID to string
-                                },
+                                    "order_id": str(order_wrapper.order.id),                                },
                             )
 
     async def _handle_cooldown(self):
@@ -323,8 +317,7 @@ class SymbolStateMachine:
                         session,
                         event_type="entry_cancelled_eod",
                         symbol=self.symbol,
-                        payload={"order_id": str(order_wrapper.order.id)},  # Convert UUID to string
-                    )
+                        payload={"order_id": str(order_wrapper.order.id)},                    )
                 logger.info("entry_cancelled_eod", symbol=self.symbol, order_id=str(order_wrapper.order.id))
 
     async def place_trailing_stop_after_entry(self, qty: int, entry_price: float) -> bool:
@@ -345,15 +338,13 @@ class SymbolStateMachine:
                 self.db.upsert_symbol_state(
                     session,
                     self.symbol,
-                    last_trail_id=str(order_wrapper.order.id),  # Convert UUID to string
-                )
+                    last_trail_id=str(order_wrapper.order.id),                )
                 
                 # Record order
                 order = order_wrapper.order
                 self.db.add_order(
                     session,
-                    order_id=str(order.id),  # Convert UUID to string
-                    symbol=self.symbol,
+                    order_id=str(order.id),                    symbol=self.symbol,
                     side="SELL",
                     order_type=order.type.value,
                     status=order.status.value,
@@ -369,8 +360,7 @@ class SymbolStateMachine:
                     event_type="trailing_stop_placed_after_entry",
                     symbol=self.symbol,
                     payload={
-                        "order_id": str(order.id),  # Convert UUID to string
-                        "qty": qty,
+                        "order_id": str(order.id),                        "qty": qty,
                     },
                 )
             
