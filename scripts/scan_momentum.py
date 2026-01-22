@@ -112,12 +112,34 @@ async def discover_and_score(
         print("❌ YFinance unavailable - cannot continue")
         return
     
+    # Show what's actually trending on Reddit
+    if apewisdom_provider.is_available():
+        print("\n🦍 Currently Trending on Reddit (Top 20):")
+        print("-"*80)
+        trending_reddit = await apewisdom_provider.get_trending_stocks(limit=20)
+        if trending_reddit:
+            print(f"{'Rank':<6}{'Symbol':<8}{'Mentions':<12}{'24h Ago':<12}{'Positivity'}")
+            print("-"*80)
+            for stock in trending_reddit:
+                print(f"{stock['rank']:<6}{stock['symbol']:<8}{stock['mentions']:<12,}"
+                      f"{stock['mentions_24h_ago']:<12,}{stock['positivity']:.2f}")
+            
+            # Add trending Reddit stocks to universe
+            reddit_symbols = [s['symbol'] for s in trending_reddit]
+            for symbol in reddit_symbols:
+                if symbol not in universe:
+                    universe.append(symbol)
+            print(f"\n✅ Added {len(reddit_symbols)} Reddit trending stocks to universe")
+        else:
+            print("   No trending stocks found (API may be down)")
+    else:
+        print("\n⚠️  Apewisdom unavailable - Reddit scores will be 0")
+    
     # Step 4: Create factors
     volume_factor = VolumeAnomalyFactor([yf_provider], {'weight': volume_weight})
     reddit_factor = RedditAttentionFactor([apewisdom_provider], {
         'weight': retail_weight,
-        'min_mentions': 10,
-        'min_positivity': 0.55
+        'mention_threshold': 10,  # Fixed: was 'min_mentions'
     })
     
     # Step 5: Score all symbols

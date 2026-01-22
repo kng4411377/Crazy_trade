@@ -6,7 +6,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 
-from ..base import DataProvider, ProviderCapability
+from ..base import DataProvider, ProviderCapability, ProviderHealth
 
 logger = logging.getLogger(__name__)
 
@@ -228,10 +228,59 @@ class ApewisdomProvider(DataProvider):
             logger.debug(f"Apewisdom error for {symbol}: {e}")
             return None
     
-    async def health_check(self) -> bool:
+    async def get_trending_stocks(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """
+        Get all currently trending stocks on Reddit.
+        
+        Args:
+            limit: Maximum number of stocks to return
+            
+        Returns:
+            List of trending stocks with their Reddit metrics
+        """
+        if not self._is_available:
+            return []
+        
+        try:
+            await self._rate_limit_wait()
+            
+            url = f"{self.base_url}/filter/all-crypto-stocks"
+            headers = self._get_headers()
+            
+            async with self._session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                if response.status != 200:
+                    return []
+                
+                data = await response.json()
+                results = data.get('results', [])
+                
+                trending = []
+                for item in results[:limit]:
+                    ticker = item.get('ticker', '')
+                    if ticker:
+                        trending.append({
+                            'symbol': ticker.upper(),
+                            'mentions': item.get('mentions', 0),
+                            'mentions_24h_ago': item.get('mentions_24h_ago', 0),
+                            'rank': item.get('rank', 0),
+                            'positivity': item.get('positivity', 0.5),
+                        })
+                
+                return trending
+                
+        except Exception as e:
+            logger.warning(f"Failed to get trending stocks: {e}")
+            return []
+    
+    async def health_check(self) -> ProviderHealth:
         """Check provider health."""
         if not self._is_available:
-            return False
+            return ProviderHealth(
+                provider_name=self.name,
+                is_available=False,
+                last_check=datetime.now(),
+                error_message="Provider not initialized"
+            )
         
         try:
             # Try fetching trending list
@@ -241,12 +290,26 @@ class ApewisdomProvider(DataProvider):
             async with self._session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
                 if response.status == 200:
                     self._last_health_check = datetime.now()
-                    return True
-                return False
+                    return ProviderHealth(
+                        provider_name=self.name,
+                        is_available=True,
+                        last_check=datetime.now()
+                    )
+                return ProviderHealth(
+                    provider_name=self.name,
+                    is_available=False,
+                    last_check=datetime.now(),
+                    error_message=f"HTTP {response.status}"
+                )
                 
         except Exception as e:
             logger.warning(f"ApewisdomProvider health check failed: {e}")
-            return False
+            return ProviderHealth(
+                provider_name=self.name,
+                is_available=False,
+                last_check=datetime.now(),
+                error_message=str(e)
+            )
     
     async def close(self):
         """Clean up resources."""

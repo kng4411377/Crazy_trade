@@ -5,7 +5,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 
-from ..base import DataProvider, ProviderCapability
+from ..base import DataProvider, ProviderCapability, ProviderHealth
 
 logger = logging.getLogger(__name__)
 
@@ -272,10 +272,15 @@ class GoogleTrendsProvider(DataProvider):
             logger.debug(f"Traceback: {traceback.format_exc()}")
             return None
     
-    async def health_check(self) -> bool:
+    async def health_check(self) -> ProviderHealth:
         """Check provider health with a simple query."""
         if not self._is_available:
-            return False
+            return ProviderHealth(
+                provider_name=self.name,
+                is_available=False,
+                last_check=datetime.now(),
+                error_message="Provider not initialized"
+            )
         
         try:
             # Try a simple query for a popular stock
@@ -283,13 +288,27 @@ class GoogleTrendsProvider(DataProvider):
             
             if result is not None:
                 self._last_health_check = datetime.now()
-                return True
+                return ProviderHealth(
+                    provider_name=self.name,
+                    is_available=True,
+                    last_check=datetime.now()
+                )
             
-            return False
+            return ProviderHealth(
+                provider_name=self.name,
+                is_available=False,
+                last_check=datetime.now(),
+                error_message="Failed to fetch test data"
+            )
             
         except Exception as e:
             logger.warning(f"GoogleTrendsProvider health check failed: {e}")
-            return False
+            return ProviderHealth(
+                provider_name=self.name,
+                is_available=False,
+                last_check=datetime.now(),
+                error_message=str(e)
+            )
     
     async def close(self):
         """Clean up resources."""
