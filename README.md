@@ -1,6 +1,6 @@
 # Crazy Trade Bot - Alpaca Automated Trading System
 
-A sophisticated, production-ready automated trading bot for Alpaca that implements momentum-based breakout strategies with trailing stop risk management. Supports both **stocks** (during market hours) and **cryptocurrency** (24/7).
+A sophisticated, production-ready automated trading bot for Alpaca that implements momentum-based breakout strategies with trailing stop risk management. Includes a **🦍 Momentum Intelligence Layer** that discovers trending stocks via Reddit/WSB buzz, volume anomalies, and social signals. Supports both **stocks** (during market hours) and **cryptocurrency** (24/7).
 
 ## 🎯 What This Bot Does
 
@@ -13,9 +13,11 @@ This bot continuously monitors your watchlist and automatically:
 ✅ **Auto-rearms orders** - If unfilled at market close, places new order next day  
 ✅ **Manages position sizing** based on dollar allocation and exposure limits  
 ✅ **Circuit breakers** - Stops trading if daily loss limits are exceeded  
+✅ **🦍 Momentum Scanner** - Find trending stocks via Reddit/WSB buzz and volume spikes  
 
 ### Key Features
 
+- **🦍 Momentum Intelligence Layer**: Find trending stocks via Reddit/WSB buzz, volume anomalies, and social signals
 - **Configurable Entry Strategies**: Use current price, SMA, or opening price as entry reference
 - **Smart Re-arming**: Automatically places new orders each trading session
 - **24/7 Crypto Support**: Trade Bitcoin, Ethereum, Dogecoin, and more around the clock
@@ -248,9 +250,22 @@ crazy_trade/
 │   ├── database.py         # SQLite models & ops
 │   ├── sizing.py           # Position sizing logic
 │   ├── market_hours.py     # Trading hours checking
-│   └── performance.py      # P&L tracking
+│   ├── performance.py      # P&L tracking
+│   │
+│   └── momentum/           # 🦍 Momentum Intelligence Layer
+│       ├── engine.py       # Main scoring engine
+│       ├── filter.py       # Watchlist momentum filter
+│       ├── discovery.py    # Trending stock discovery
+│       ├── providers/      # Data providers
+│       │   ├── apewisdom.py      # Reddit/WSB sentiment (FREE)
+│       │   ├── yfinance_provider.py  # Volume data (FREE)
+│       │   └── google_trends.py  # Search interest (FREE)
+│       └── factors/        # Scoring factors
+│           ├── reddit_attention.py   # Reddit buzz scoring
+│           └── volume_anomaly.py     # Volume spike detection
 │
 ├── scripts/                 # Utility scripts
+│   ├── scan_momentum.py    # 🦍 Momentum scanner (find trending stocks)
 │   ├── show_performance.py # View P&L report
 │   ├── export_trades.py    # Export trades to CSV
 │   ├── check_status.py     # Check bot status
@@ -412,6 +427,108 @@ hours:
 
 ## 🔧 Advanced Features
 
+### 🦍 Momentum Intelligence Layer (Social/News Signals)
+
+The bot includes a **Momentum Intelligence Layer** that can discover and filter stocks based on social media buzz and volume anomalies. This helps you find stocks that are trending up due to Reddit/WSB attention before major price moves.
+
+#### What It Does
+
+| Factor | Source | What It Detects |
+|--------|--------|-----------------|
+| **Reddit Attention** | Apewisdom (FREE) | WSB mentions, sentiment, trending rank |
+| **Volume Anomaly** | Yahoo Finance (FREE) | Unusual trading volume (RVOL) |
+| **Retail Attention** | Google Trends (FREE) | Search interest spikes |
+
+#### Quick Start - Momentum Scanner
+
+```bash
+# Scan for trending stocks with social buzz
+python scripts/scan_momentum.py
+
+# Output shows:
+# 🦍 EARLY SIGNALS - Reddit buzz before volume spike (best entry!)
+# 🔥 VOLUME BREAKOUTS - High volume right now
+# 🏆 CONFIRMED MOMENTUM - Both Reddit + Volume (strongest signal)
+```
+
+#### Enable Momentum Filter in Bot
+
+The bot can automatically filter your watchlist to only trade stocks with momentum signals:
+
+```bash
+# 1. Create config from template
+cp momentum_config.yaml.example momentum_config.yaml
+
+# 2. Enable the filter
+```
+
+Edit `momentum_config.yaml`:
+
+```yaml
+momentum_layer:
+  enabled: true
+  
+  filter:
+    enabled: true           # Filter watchlist by momentum
+    min_score: 0.4          # Minimum score to trade (0-1)
+    volume_weight: 0.7      # Weight for volume factor
+    reddit_weight: 0.3      # Weight for Reddit factor
+    require_volume: true    # Must have volume data
+    require_reddit: false   # Reddit data optional
+    fail_open: true         # On error, include symbol (safe)
+```
+
+#### How Momentum Scoring Works
+
+Each stock gets scored 0.0 to 1.0 based on:
+
+**Reddit Attention Score** (via Apewisdom):
+- Mention volume (how much WSB is talking about it)
+- Mention velocity (rate of increase in mentions)
+- Sentiment/positivity (bullish vs bearish)
+- Rank momentum (climbing the trending list)
+
+**Volume Anomaly Score** (via Yahoo Finance):
+- RVOL (Relative Volume) - current vs 20-day average
+- Volume trend - recent 5 days vs previous 15 days
+
+```
+Example Output:
+┌─────────┬───────────┬────────┬─────────┬───────────────────────┐
+│ Symbol  │ Composite │ Volume │ Reddit  │ Signals               │
+├─────────┼───────────┼────────┼─────────┼───────────────────────┤
+│ GME     │ 0.850     │ 0.720  │ 0.920   │ 🦍 High Reddit 💥 WSB │
+│ NVDA    │ 0.780     │ 0.850  │ 0.650   │ 🔥 High Volume        │
+│ TSLA    │ 0.720     │ 0.680  │ 0.710   │ 🔥🦍 Both signals     │
+└─────────┴───────────┴────────┴─────────┴───────────────────────┘
+```
+
+#### Trading Strategy with Momentum
+
+1. **🦍 Early Entry** - Reddit buzz WITHOUT volume yet
+   - Best entry point - catch before the move
+   - Watch for volume confirmation
+
+2. **🔥 Volume Breakouts** - High volume RIGHT NOW
+   - Momentum is confirming
+   - Good for quick scalps
+
+3. **🏆 Confirmed Momentum** - Both Reddit + Volume
+   - Strongest signal but may have missed early entry
+   - Good for continuation trades
+
+#### Data Sources (All FREE!)
+
+| Provider | Data | Rate Limits | Notes |
+|----------|------|-------------|-------|
+| **Apewisdom** | Reddit/WSB sentiment | Unlimited | Updates 2x daily (9AM & 9PM EST) |
+| **Yahoo Finance** | Volume, price data | Unlimited | Real-time |
+| **Google Trends** | Search interest | ~10 req/min | Can hit 429 errors |
+
+See **[docs/momentum/README.md](docs/momentum/README.md)** for full momentum documentation.
+
+---
+
 ### Crypto Trading (24/7)
 
 ```yaml
@@ -531,6 +648,11 @@ All documentation is in the `/docs` folder:
 - **[CRYPTO_GUIDE.md](docs/CRYPTO_GUIDE.md)** - 24/7 cryptocurrency trading
 - **[UPDATING_CONFIG.md](docs/UPDATING_CONFIG.md)** - How to merge config updates
 - **[RESET_GUIDE.md](docs/RESET_GUIDE.md)** - Reset paper account
+
+### 🦍 Momentum Intelligence
+- **[momentum/README.md](docs/momentum/README.md)** - Full momentum layer docs
+- **[momentum/QUICKSTART.md](docs/momentum/QUICKSTART.md)** - Quick start guide
+- **[MOMENTUM_CONFIG_GUIDE.md](docs/MOMENTUM_CONFIG_GUIDE.md)** - Configuration reference
 
 ### 🔧 Technical
 - **[API_GUIDE.md](docs/API_GUIDE.md)** - REST API documentation
