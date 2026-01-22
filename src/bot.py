@@ -678,7 +678,8 @@ class TradingBot:
     def _on_order_status(self, order_wrapper: AlpacaOrder):
         """Handle order status updates."""
         symbol = order_wrapper.contract.symbol
-        order_id = str(order_wrapper.order.id)        status = order_wrapper.orderStatus.status
+        order_id = str(order_wrapper.order.id)
+        status = order_wrapper.orderStatus.status
         
         logger.debug(
             "order_status_update",
