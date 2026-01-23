@@ -1,4 +1,17 @@
-# Momentum Intelligence Layer Configuration
+# ==============================================================================
+# DEPRECATED - USE config.yaml INSTEAD!
+# ==============================================================================
+#
+# This file is kept for backward compatibility only.
+# All momentum settings have been moved to the main config.yaml file
+# under the "momentum:" section.
+#
+# If you already have momentum_config.yaml, it will still work.
+# But for new setups, just use config.yaml.
+#
+# ==============================================================================
+
+# Legacy Momentum Intelligence Layer Configuration
 #
 # Copy this to momentum_config.yaml and customize
 #   cp momentum_config.yaml.example momentum_config.yaml
@@ -129,13 +142,47 @@ momentum_layer:
     # Universe to scan (if not using watchlist)
     # universe_file: "universe.txt"  # One symbol per line
   
-  # Dynamic watchlist settings
+  # 🚀 DYNAMIC WATCHLIST - Auto-discover trending stocks!
   dynamic_watchlist:
-    enabled: false  # Use momentum-generated watchlist
-    max_symbols: 20  # Max symbols in dynamic watchlist
-    update_interval: 3600  # Update every hour (seconds)
+    enabled: false            # Set to true to auto-discover trending stocks
     
-    # Universe to scan for dynamic watchlist
+    # Scan schedule
+    update_interval: 3600     # Re-scan every hour (seconds)
+    scan_at_start: true       # Run scan when bot starts
+    
+    # Discovery sources
+    use_reddit_trending: true   # Include top Reddit/WSB stocks
+    use_volume_movers: true     # Include high volume stocks
+    use_config_watchlist: true  # Also include stocks from config.yaml
+    
+    # Position limits (respects config.yaml limits too)
+    max_positions: 5            # Max simultaneous positions (overrides config.yaml if lower)
+    max_watchlist_size: 20      # Max symbols to track at once
+    
+    # Scoring thresholds
+    min_score_to_add: 0.5       # Minimum momentum score to add to watchlist
+    min_score_to_keep: 0.3      # Remove if score drops below this
+    
+    # Stock filters
+    min_price: 5.0              # Minimum stock price (filter penny stocks)
+    max_price: 1000.0           # Maximum stock price
+    min_volume: 500000          # Minimum daily volume
+    exclude_otc: true           # Exclude OTC/pink sheets
+    
+    # Symbols to always include (regardless of momentum)
+    always_include: []
+    # always_include:
+    #   - "TSLA"
+    #   - "NVDA"
+    
+    # Symbols to never trade (blacklist)
+    blacklist: []
+    # blacklist:
+    #   - "BBBY"  # Bankrupt
+    #   - "AMC"   # Too risky
+    
+    # Universe to scan (base list for discovery)
+    # If empty, will auto-discover from Reddit trending + known active stocks
     universe:
       - "TSLA"
       - "NVDA"
@@ -147,7 +194,12 @@ momentum_layer:
       - "AMZN"
       - "GME"
       - "AMC"
-      - "BBBY"
+      - "PLTR"
+      - "SOFI"
+      - "COIN"
+      - "MSTR"
+      - "SMCI"
+      - "ARM"
       # Add more symbols to scan
   
   # Monitoring

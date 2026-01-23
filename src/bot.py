@@ -55,6 +55,8 @@ class TradingBot:
         # Momentum filter (hybrid integration)
         self.momentum_filter = None
         self.momentum_filter_config = self._load_momentum_filter_config()
+        self.dynamic_watchlist_config = self._load_dynamic_watchlist_config()
+        self.dynamic_watchlist_manager = None
         self.active_symbols: List[str] = all_symbols  # Will be filtered at start()
         
         # Performance tracker
@@ -98,9 +100,13 @@ class TradingBot:
         # Initialize and apply momentum filter
         await self._initialize_momentum_filter()
         
+        # Initialize dynamic watchlist (if enabled)
+        await self._initialize_dynamic_watchlist()
+        
         self.running = True
         
         # Log initial state
+        dw_enabled = self.dynamic_watchlist_config.get('enabled', False) if self.dynamic_watchlist_config else False
         with self.db.get_session() as session:
             self.db.add_event(
                 session,
@@ -111,6 +117,7 @@ class TradingBot:
                     "crypto_watchlist": self.config.crypto_watchlist,
                     "active_symbols": self.active_symbols,
                     "momentum_filter_enabled": self.momentum_filter_config.get('enabled', False) if self.momentum_filter_config else False,
+                    "dynamic_watchlist_enabled": dw_enabled,
                 },
             )
         
@@ -137,38 +144,104 @@ class TradingBot:
             except Exception as e:
                 logger.error("momentum_filter_close_error", error=str(e))
         
+        # Clean up dynamic watchlist manager
+        if self.dynamic_watchlist_manager:
+            try:
+                await self.dynamic_watchlist_manager.close()
+            except Exception as e:
+                logger.error("dynamic_watchlist_close_error", error=str(e))
+        
         with self.db.get_session() as session:
             self.db.add_event(session, event_type="bot_stopped")
         
         logger.info("trading_bot_stopped")
 
     def _load_momentum_filter_config(self) -> Optional[Dict]:
-        """Load momentum filter configuration from momentum_config.yaml."""
+        """Load momentum filter configuration from config.yaml."""
         try:
-            config_path = Path("momentum_config.yaml")
-            if not config_path.exists():
-                logger.info("momentum_config_not_found", path=str(config_path))
-                return None
+            # Try main config.yaml first (unified config)
+            config_path = Path("config.yaml")
+            if config_path.exists():
+                with open(config_path, 'r') as f:
+                    config = yaml.safe_load(f)
+                
+                # Check for unified config structure (momentum.filter)
+                filter_config = config.get('momentum', {}).get('filter', {})
+                if filter_config:
+                    logger.info(
+                        "momentum_filter_config_loaded",
+                        source="config.yaml",
+                        enabled=filter_config.get('enabled', False),
+                        min_score=filter_config.get('min_score', 0),
+                    )
+                    return filter_config
             
-            with open(config_path, 'r') as f:
-                momentum_config = yaml.safe_load(f)
+            # Fallback: Try legacy momentum_config.yaml
+            legacy_path = Path("momentum_config.yaml")
+            if legacy_path.exists():
+                with open(legacy_path, 'r') as f:
+                    momentum_config = yaml.safe_load(f)
+                
+                filter_config = momentum_config.get('momentum_layer', {}).get('filter', {})
+                if filter_config:
+                    logger.info(
+                        "momentum_filter_config_loaded",
+                        source="momentum_config.yaml (legacy)",
+                        enabled=filter_config.get('enabled', False),
+                        min_score=filter_config.get('min_score', 0),
+                    )
+                    return filter_config
             
-            filter_config = momentum_config.get('momentum_layer', {}).get('filter', {})
-            
-            if not filter_config:
-                logger.info("momentum_filter_config_not_found")
-                return None
-            
-            logger.info(
-                "momentum_filter_config_loaded",
-                enabled=filter_config.get('enabled', False),
-                min_score=filter_config.get('min_score', 0),
-            )
-            
-            return filter_config
+            logger.info("momentum_filter_config_not_found")
+            return None
             
         except Exception as e:
             logger.error("momentum_filter_config_load_error", error=str(e))
+            return None
+    
+    def _load_dynamic_watchlist_config(self) -> Optional[Dict]:
+        """Load dynamic watchlist configuration from config.yaml."""
+        try:
+            # Try main config.yaml first (unified config)
+            config_path = Path("config.yaml")
+            if config_path.exists():
+                with open(config_path, 'r') as f:
+                    config = yaml.safe_load(f)
+                
+                # Check for unified config structure (momentum.dynamic_watchlist)
+                dw_config = config.get('momentum', {}).get('dynamic_watchlist', {})
+                if dw_config:
+                    logger.info(
+                        "dynamic_watchlist_config_loaded",
+                        source="config.yaml",
+                        enabled=dw_config.get('enabled', False),
+                        max_positions=dw_config.get('max_positions', 5),
+                        update_interval=dw_config.get('update_interval', 3600),
+                    )
+                    return dw_config
+            
+            # Fallback: Try legacy momentum_config.yaml
+            legacy_path = Path("momentum_config.yaml")
+            if legacy_path.exists():
+                with open(legacy_path, 'r') as f:
+                    momentum_config = yaml.safe_load(f)
+                
+                dw_config = momentum_config.get('momentum_layer', {}).get('dynamic_watchlist', {})
+                if dw_config:
+                    logger.info(
+                        "dynamic_watchlist_config_loaded",
+                        source="momentum_config.yaml (legacy)",
+                        enabled=dw_config.get('enabled', False),
+                        max_positions=dw_config.get('max_positions', 5),
+                        update_interval=dw_config.get('update_interval', 3600),
+                    )
+                    return dw_config
+            
+            logger.info("dynamic_watchlist_config_not_found")
+            return None
+            
+        except Exception as e:
+            logger.error("dynamic_watchlist_config_load_error", error=str(e))
             return None
     
     async def _initialize_momentum_filter(self):
@@ -238,6 +311,93 @@ class TradingBot:
         except Exception as e:
             logger.error("momentum_filter_error", error=str(e), exc_info=True)
             self.momentum_filter = None
+    
+    async def _initialize_dynamic_watchlist(self):
+        """Initialize dynamic watchlist manager for auto-discovery."""
+        if not self.dynamic_watchlist_config or not self.dynamic_watchlist_config.get('enabled', False):
+            logger.info("dynamic_watchlist_disabled")
+            return
+        
+        try:
+            # Import here to avoid circular dependency
+            from src.momentum.dynamic_watchlist import DynamicWatchlistManager
+            
+            logger.info("dynamic_watchlist_initializing")
+            
+            # Create manager with bot config for position limits
+            self.dynamic_watchlist_manager = DynamicWatchlistManager(
+                self.dynamic_watchlist_config,
+                bot_config=self.config
+            )
+            
+            # Get current positions for context
+            positions = await self.alpaca.get_positions()
+            current_positions = {p.symbol: float(p.market_value) for p in positions}
+            account = await self.alpaca.get_account()
+            account_value = float(account.equity)
+            
+            # Initialize (this runs first scan if scan_at_start=True)
+            success = await self.dynamic_watchlist_manager.initialize()
+            
+            if not success:
+                logger.error("dynamic_watchlist_init_failed")
+                self.dynamic_watchlist_manager = None
+                return
+            
+            # Run initial scan with position context
+            await self.dynamic_watchlist_manager.scan_and_update(
+                current_positions=current_positions,
+                account_value=account_value
+            )
+            
+            # Get the dynamic watchlist and merge with active symbols
+            dynamic_symbols = self.dynamic_watchlist_manager.get_watchlist()
+            
+            # Merge: active_symbols + dynamic (remove duplicates)
+            combined = list(self.active_symbols)
+            for symbol in dynamic_symbols:
+                if symbol not in combined:
+                    combined.append(symbol)
+            
+            # Respect max positions from dynamic watchlist config
+            max_watchlist = self.dynamic_watchlist_config.get('max_watchlist_size', 20)
+            self.active_symbols = combined[:max_watchlist]
+            
+            # Create state machines for any new symbols
+            for symbol in self.active_symbols:
+                if symbol not in self.state_machines:
+                    self.state_machines[symbol] = SymbolStateMachine(
+                        symbol, self.config, self.alpaca, self.db, self.sizer
+                    )
+            
+            # Start background scanning
+            await self.dynamic_watchlist_manager.start_background_scanning()
+            
+            logger.info(
+                "dynamic_watchlist_initialized",
+                dynamic_symbols=dynamic_symbols,
+                active_symbols=self.active_symbols,
+                total=len(self.active_symbols)
+            )
+            
+            # Log to database
+            with self.db.get_session() as session:
+                self.db.add_event(
+                    session,
+                    event_type="dynamic_watchlist_initialized",
+                    payload={
+                        "dynamic_symbols": dynamic_symbols,
+                        "active_symbols": self.active_symbols,
+                        "config": self.dynamic_watchlist_config
+                    }
+                )
+                
+        except ImportError as e:
+            logger.error("dynamic_watchlist_import_error", error=str(e))
+            self.dynamic_watchlist_manager = None
+        except Exception as e:
+            logger.error("dynamic_watchlist_error", error=str(e), exc_info=True)
+            self.dynamic_watchlist_manager = None
 
     def _signal_handler(self, signum, frame):
         """Handle shutdown signals."""

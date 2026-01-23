@@ -50,7 +50,6 @@ python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 cp config.yaml.example config.yaml
-cp momentum_config.yaml.example momentum_config.yaml
 cp secrets.yaml.example secrets.yaml
 ```
 
@@ -66,39 +65,53 @@ alpaca:
 
 **Step 2: Customize `config.yaml` for your strategy**
 
+All settings are in a single unified config file with labeled sections:
+
 ```yaml
 mode: "paper"          # "paper" | "live" - START WITH PAPER!
 
-# Stock watchlist (trades during market hours)
+# SECTION 2: STOCK WATCHLIST
 watchlist:
   - "TSLA"
   - "NVDA"
   - "AMD"
 
-# Crypto watchlist (trades 24/7) - optional
-crypto_watchlist:
-  - "BTC/USD"
-  - "ETH/USD"
-
+# SECTION 3: POSITION SIZING
 allocation:
-  total_usd_cap: 20000           # Max total capital deployed
-  per_symbol_usd: 1000           # Max per symbol
-  min_cash_reserve_percent: 10   # Keep 10% cash buffer
+  total_usd_cap: 50000
+  per_symbol_usd: 1000
+  min_cash_reserve_percent: 10
 
+# SECTION 4: ENTRY STRATEGY
 entries:
-  entry_price_strategy: "current"  # "current" | "sma" | "opening"
-  buy_stop_pct_above_last: 5.0    # Entry trigger % above base price
-  tif: "DAY"                       # Time-in-force: "DAY" | "GTC"
+  entry_price_strategy: "current"
+  buy_stop_pct_above_last: 5.0
+  tif: "DAY"
 
+# SECTION 5: EXIT STRATEGY
 stops:
-  trailing_stop_pct: 10.0          # Trail 10% from peak
-  tif: "GTC"                       # Good till cancelled
+  trailing_stop_pct: 10.0
+  tif: "GTC"
 
-cooldowns:
-  after_stopout_minutes: 1440      # Wait 24hr after stop-out (prevents revenge trading)
+# SECTION 6: RISK MANAGEMENT
+risk:
+  max_concurrent_positions: 5
+  max_daily_loss_pct: 3.0
+
+# MOMENTUM INTELLIGENCE (optional)
+momentum:
+  enabled: false
+  filter:
+    enabled: false
+  dynamic_watchlist:
+    enabled: false
+
+# CRYPTO (disabled by default, at bottom of file)
+crypto:
+  enabled: false
 ```
 
-⚠️ **Security**: `config.yaml`, `momentum_config.yaml`, and `secrets.yaml` are gitignored - safe from commits!
+⚠️ **Security**: `config.yaml` and `secrets.yaml` are gitignored - safe from commits!
 
 ### Running the Bot
 
@@ -234,11 +247,10 @@ qty = floor(per_symbol_usd / last_price)
 
 ```
 crazy_trade/
-├── config.yaml              # Your local config (gitignored)
-├── config.yaml.example      # Template (committed to git)
-├── momentum_config.yaml     # Momentum layer config (gitignored)
-├── momentum_config.yaml.example  # Template (committed to git)
+├── config.yaml              # Your unified config (gitignored)
+├── config.yaml.example      # Template with ALL settings (committed to git)
 ├── secrets.yaml             # Your API keys (gitignored)
+├── secrets.yaml.example     # API key template
 ├── main.py                  # Entry point
 ├── requirements.txt         # Dependencies
 │
@@ -453,19 +465,12 @@ python scripts/scan_momentum.py
 
 #### Enable Momentum Filter in Bot
 
-The bot can automatically filter your watchlist to only trade stocks with momentum signals:
+The bot can automatically filter your watchlist to only trade stocks with momentum signals.
 
-```bash
-# 1. Create config from template
-cp momentum_config.yaml.example momentum_config.yaml
-
-# 2. Enable the filter
-```
-
-Edit `momentum_config.yaml`:
+Edit the `momentum` section in your `config.yaml`:
 
 ```yaml
-momentum_layer:
+momentum:
   enabled: true
   
   filter:
@@ -475,7 +480,6 @@ momentum_layer:
     reddit_weight: 0.3      # Weight for Reddit factor
     require_volume: true    # Must have volume data
     require_reddit: false   # Reddit data optional
-    fail_open: true         # On error, include symbol (safe)
 ```
 
 #### How Momentum Scoring Works
@@ -580,7 +584,6 @@ allocation:
 ```bash
 # Copy from template
 cp config.yaml.example config.yaml
-cp momentum_config.yaml.example momentum_config.yaml
 cp secrets.yaml.example secrets.yaml
 ```
 
@@ -675,7 +678,7 @@ When you pull new code updates:
 # Your local configs are gitignored - safe from overwrites!
 git pull
 
-# Merge new features into all your configs (config.yaml, momentum_config.yaml)
+# Merge new features into your config
 python3 merge_config.py
 
 # Or review changes manually
