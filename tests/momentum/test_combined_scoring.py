@@ -363,7 +363,7 @@ async def main():
         print("="*70)
         
         print("\n💡 Next Steps:")
-        print("  1. Enable momentum layer in momentum_config.yaml")
+        print("  1. Enable momentum in config.yaml: momentum.enabled: true")
         print("  2. Adjust factor weights (volume vs retail)")
         print("  3. Run: python examples/momentum_example.py")
         print("  4. Integrate with main bot")

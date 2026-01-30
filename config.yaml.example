@@ -146,14 +146,16 @@ alerts:
 
 momentum:
   enabled: false                 # Master toggle for momentum features
+  # When enabled: filter and dynamic_watchlist are ON by default (set either to false to override).
 
   # --------------------------------------------------------------------------
   # MOMENTUM FILTER (Filter your watchlist)
   # --------------------------------------------------------------------------
-  # Filters your watchlist at startup, only trading stocks with momentum signals
+  # Filters your watchlist at startup, only trading stocks with momentum signals.
+  # Enabled automatically when momentum.enabled is true.
   
   filter:
-    enabled: false               # Enable momentum filtering
+    enabled: true                # Follows momentum.enabled; set false to disable filter only
     min_score: 0.4               # Minimum momentum score to trade (0-1)
     volume_weight: 0.7           # Weight for volume anomaly
     reddit_weight: 0.3           # Weight for Reddit buzz
@@ -165,10 +167,11 @@ momentum:
   # --------------------------------------------------------------------------
   # DYNAMIC WATCHLIST (Auto-discover stocks)
   # --------------------------------------------------------------------------
-  # Automatically discovers and adds trending stocks to your watchlist
+  # Automatically discovers and adds trending stocks to your watchlist.
+  # Enabled automatically when momentum.enabled is true.
   
   dynamic_watchlist:
-    enabled: false               # Enable auto-discovery
+    enabled: true                # Follows momentum.enabled; set false to disable only this
     update_interval: 3600        # Re-scan every hour (seconds)
     scan_at_start: true          # Scan when bot starts
     
@@ -279,19 +282,20 @@ momentum:
 crypto:
   enabled: false                 # Master toggle for crypto trading
   
-  # Crypto watchlist (only used if crypto.enabled = true). Alpaca format: SYMBOL/USD
-  watchlist: []
-  # watchlist:
-  #   - "BTC/USD"                # Bitcoin (most liquid)
-  #   - "ETH/USD"                # Ethereum (most liquid)
-  #   - "DOGE/USD"               # Dogecoin (high volatility!)
-  #   - "SHIB/USD"               # Shiba Inu (high volatility!)
-  #   - "SOL/USD"                # Solana
-  #   - "AVAX/USD"               # Avalanche
-  #   - "UNI/USD"                # Uniswap
-  #   - "LINK/USD"               # Chainlink
-  #   - "LTC/USD"                # Litecoin
-  #   - "XRP/USD"                # Ripple
+  # Crypto watchlist (only used if crypto.enabled = true). Alpaca format: SYMBOL/USD.
+  # Same list is used for Gemini crypto analysis (gemini.crypto_watchlist) via anchor.
+  watchlist: &crypto_watchlist
+    - "BTC/USD"                  # Bitcoin (most liquid)
+    - "ETH/USD"                  # Ethereum (most liquid)
+    - "SOL/USD"                  # Solana
+  # Optional: add more — same list is shared with Gemini
+  #   - "DOGE/USD"
+  #   - "SHIB/USD"
+  #   - "AVAX/USD"
+  #   - "UNI/USD"
+  #   - "LINK/USD"
+  #   - "LTC/USD"
+  #   - "XRP/USD"
   
   # Crypto-specific allocation (overrides main allocation for crypto)
   allocation:
@@ -336,16 +340,15 @@ gemini:
   enable_stocks: true              # Analyze stocks from dynamic watchlist
   enable_crypto: true              # Analyze crypto from static list
   
-  # Crypto watchlist for Gemini analysis (separate from trading crypto)
-  crypto_watchlist:
-    - "BTC/USD"
-    - "ETH/USD"
-    - "SOL/USD"
+  # Crypto watchlist for Gemini (same as crypto.watchlist — use anchor above)
+  crypto_watchlist: *crypto_watchlist
   
-  # Strategy context passed to Gemini
+  # Strategy context passed to Gemini (exactly 2 keys: stocks, crypto).
+  # No fixed list — any string is valid; these are just examples the AI uses as context.
+  # Common choices: "Wheel Strategy", "Day Trading", "Swing Trading", "Scalping", "Momentum", "Value Investing"
   strategies:
-    stocks: "Wheel Strategy"       # Strategy for stock analysis
-    crypto: "Day Trading"          # Strategy for crypto analysis
+    stocks: "Wheel Strategy"
+    crypto: "Day Trading"
   
   # Technical indicators (switches: only enabled ones are calculated — saves CPU)
   indicators:

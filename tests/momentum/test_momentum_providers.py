@@ -244,8 +244,8 @@ async def main():
         print("\n🎉 ALL TESTS PASSED! 🎉")
         print("\nYou're ready to use the momentum layer!")
         print("Next steps:")
-        print("  1. Copy momentum_config.yaml.example to momentum_config.yaml")
-        print("  2. Set enabled: true in momentum_config.yaml")
+        print("  1. In config.yaml set momentum.enabled: true")
+        print("  2. Filter/dynamic_watchlist turn on with momentum; set to false to disable only one")
         print("  3. Run the bot with momentum layer enabled")
         return 0
     else:

@@ -213,7 +213,7 @@ async def main():
         print("✅ All tests completed!")
         print("="*60)
         print("\n💡 Next Steps:")
-        print("  1. Enable retail_attention in momentum_config.yaml")
+        print("  1. Enable retail_attention in config.yaml under momentum.factors")
         print("  2. Adjust factor weights (volume vs retail)")
         print("  3. Run examples/momentum_example.py")
         print()

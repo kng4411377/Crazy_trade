@@ -244,7 +244,7 @@ async def main():
         print(f"  {test_name}: {status}")
     
     print("\n💡 Next Steps:")
-    print("  1. Enable in momentum_config.yaml: apewisdom.enabled = true (already enabled!)")
+    print("  1. Enable momentum in config.yaml: momentum.enabled: true (filter/reddit use apewisdom)")
     print("  2. Run scanner: python scripts/scan_momentum.py")
     print("  3. No API key needed - works out of the box!")
     print()

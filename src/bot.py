@@ -184,8 +184,11 @@ class TradingBot:
                     config = yaml.safe_load(f)
                 
                 # Check for unified config structure (momentum.filter)
-                filter_config = config.get('momentum', {}).get('filter', {})
+                momentum_enabled = config.get('momentum', {}).get('enabled', False)
+                filter_config = dict(config.get('momentum', {}).get('filter', {}))
                 if filter_config:
+                    # When momentum is enabled, filter is enabled by default; set false to override
+                    filter_config['enabled'] = momentum_enabled and filter_config.get('enabled', True)
                     logger.info(
                         "momentum_filter_config_loaded",
                         source="config.yaml",
@@ -227,8 +230,11 @@ class TradingBot:
                     config = yaml.safe_load(f)
                 
                 # Check for unified config structure (momentum.dynamic_watchlist)
-                dw_config = config.get('momentum', {}).get('dynamic_watchlist', {})
+                momentum_enabled = config.get('momentum', {}).get('enabled', False)
+                dw_config = dict(config.get('momentum', {}).get('dynamic_watchlist', {}))
                 if dw_config:
+                    # When momentum is enabled, dynamic_watchlist is enabled by default; set false to override
+                    dw_config['enabled'] = momentum_enabled and dw_config.get('enabled', True)
                     logger.info(
                         "dynamic_watchlist_config_loaded",
                         source="config.yaml",
