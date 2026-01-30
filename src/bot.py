@@ -59,6 +59,12 @@ class TradingBot:
         self.dynamic_watchlist_manager = None
         self.active_symbols: List[str] = all_symbols  # Will be filtered at start()
         
+        # Gemini AI analyzer
+        self.gemini_analyzer = None
+        self.gemini_config = self._load_gemini_config()
+        self.last_gemini_analysis = datetime.min
+        self.gemini_signals: Dict = {}  # Latest signals from Gemini
+        
         # Performance tracker
         self.performance = PerformanceTracker(self.db, self.alpaca)
         
@@ -103,10 +109,14 @@ class TradingBot:
         # Initialize dynamic watchlist (if enabled)
         await self._initialize_dynamic_watchlist()
         
+        # Initialize Gemini AI analyzer (if enabled)
+        await self._initialize_gemini_analyzer()
+        
         self.running = True
         
         # Log initial state
         dw_enabled = self.dynamic_watchlist_config.get('enabled', False) if self.dynamic_watchlist_config else False
+        gemini_enabled = self.gemini_config.get('enabled', False) if self.gemini_config else False
         with self.db.get_session() as session:
             self.db.add_event(
                 session,
@@ -118,6 +128,7 @@ class TradingBot:
                     "active_symbols": self.active_symbols,
                     "momentum_filter_enabled": self.momentum_filter_config.get('enabled', False) if self.momentum_filter_config else False,
                     "dynamic_watchlist_enabled": dw_enabled,
+                    "gemini_enabled": gemini_enabled,
                 },
             )
         
@@ -150,6 +161,13 @@ class TradingBot:
                 await self.dynamic_watchlist_manager.close()
             except Exception as e:
                 logger.error("dynamic_watchlist_close_error", error=str(e))
+        
+        # Clean up Gemini analyzer
+        if self.gemini_analyzer:
+            try:
+                await self.gemini_analyzer.close()
+            except Exception as e:
+                logger.error("gemini_analyzer_close_error", error=str(e))
         
         with self.db.get_session() as session:
             self.db.add_event(session, event_type="bot_stopped")
@@ -243,6 +261,166 @@ class TradingBot:
         except Exception as e:
             logger.error("dynamic_watchlist_config_load_error", error=str(e))
             return None
+    
+    def _load_gemini_config(self) -> Optional[Dict]:
+        """Load Gemini AI configuration from config.yaml and environment."""
+        import os
+        
+        try:
+            # Load .env file if python-dotenv is available
+            try:
+                from dotenv import load_dotenv
+                load_dotenv()
+            except ImportError:
+                pass
+            
+            gemini_config = {}
+            
+            # Load from config.yaml
+            config_path = Path("config.yaml")
+            if config_path.exists():
+                with open(config_path, 'r') as f:
+                    config = yaml.safe_load(f)
+                gemini_config = config.get('gemini', {})
+            
+            # Override with environment variables if set
+            if os.getenv('GEMINI_ENABLED') is not None:
+                gemini_config['enabled'] = os.getenv('GEMINI_ENABLED', '').lower() == 'true'
+            if os.getenv('STOCKS_ENABLED') is not None:
+                gemini_config['enable_stocks'] = os.getenv('STOCKS_ENABLED', '').lower() == 'true'
+            if os.getenv('CRYPTO_ENABLED') is not None:
+                gemini_config['enable_crypto'] = os.getenv('CRYPTO_ENABLED', '').lower() == 'true'
+            
+            if gemini_config:
+                logger.info(
+                    "gemini_config_loaded",
+                    enabled=gemini_config.get('enabled', False),
+                    model=gemini_config.get('model', 'gemini-1.5-flash'),
+                    enable_stocks=gemini_config.get('enable_stocks', True),
+                    enable_crypto=gemini_config.get('enable_crypto', True),
+                )
+                return gemini_config
+            
+            logger.info("gemini_config_not_found")
+            return None
+            
+        except Exception as e:
+            logger.error("gemini_config_load_error", error=str(e))
+            return None
+    
+    async def _initialize_gemini_analyzer(self):
+        """Initialize Gemini AI analyzer."""
+        if not self.gemini_config or not self.gemini_config.get('enabled', False):
+            logger.info("gemini_analyzer_disabled")
+            return
+        
+        try:
+            from src.analysis.gemini_analyzer import GeminiAnalyzer
+            
+            logger.info("gemini_analyzer_initializing")
+            
+            self.gemini_analyzer = GeminiAnalyzer(self.gemini_config)
+            success = await self.gemini_analyzer.initialize()
+            
+            if not success:
+                logger.error("gemini_analyzer_init_failed")
+                self.gemini_analyzer = None
+                return
+            
+            logger.info("gemini_analyzer_initialized")
+            
+            # Log to database
+            with self.db.get_session() as session:
+                self.db.add_event(
+                    session,
+                    event_type="gemini_analyzer_initialized",
+                    payload={
+                        "model": self.gemini_config.get('model'),
+                        "enable_stocks": self.gemini_config.get('enable_stocks'),
+                        "enable_crypto": self.gemini_config.get('enable_crypto'),
+                    }
+                )
+                
+        except ImportError as e:
+            logger.error("gemini_analyzer_import_error", error=str(e))
+            self.gemini_analyzer = None
+        except Exception as e:
+            logger.error("gemini_analyzer_error", error=str(e), exc_info=True)
+            self.gemini_analyzer = None
+    
+    async def _run_gemini_analysis(self):
+        """Run periodic Gemini AI analysis."""
+        if not self.gemini_analyzer:
+            return
+        
+        # Check if it's time to run analysis
+        gemini_interval = self.gemini_config.get('call_interval_seconds', 60)
+        if (datetime.now() - self.last_gemini_analysis).total_seconds() < gemini_interval:
+            return
+        
+        try:
+            # Get stock symbols from dynamic watchlist or active symbols
+            stock_symbols = []
+            if self.gemini_config.get('enable_stocks', True):
+                if self.dynamic_watchlist_manager:
+                    stock_symbols = self.dynamic_watchlist_manager.get_watchlist()
+                else:
+                    stock_symbols = [s for s in self.active_symbols if '/' not in s]
+            
+            # Get crypto symbols
+            crypto_symbols = []
+            if self.gemini_config.get('enable_crypto', True):
+                crypto_symbols = self.gemini_config.get('crypto_watchlist', [])
+            
+            if not stock_symbols and not crypto_symbols:
+                return
+            
+            logger.info(
+                "gemini_analysis_running",
+                stocks=len(stock_symbols),
+                crypto=len(crypto_symbols)
+            )
+            
+            # Run analysis
+            signals = await self.gemini_analyzer.analyze(
+                stock_symbols=stock_symbols,
+                crypto_symbols=crypto_symbols
+            )
+            
+            self.last_gemini_analysis = datetime.now()
+            self.gemini_signals = signals
+            
+            # Log signals
+            actionable = self.gemini_analyzer.get_actionable_signals(signals)
+            if actionable:
+                logger.info(
+                    "gemini_signals_received",
+                    total=len(signals),
+                    actionable=len(actionable)
+                )
+                
+                for signal in actionable:
+                    logger.info(
+                        "gemini_signal",
+                        symbol=signal.symbol,
+                        action=signal.action,
+                        confidence=signal.confidence,
+                        strategy=signal.strategy,
+                        reasoning=signal.reasoning[:100]
+                    )
+                
+                # Log to database
+                with self.db.get_session() as session:
+                    self.db.add_event(
+                        session,
+                        event_type="gemini_analysis_complete",
+                        payload={
+                            "signals": {s.symbol: s.to_dict() for s in actionable}
+                        }
+                    )
+            
+        except Exception as e:
+            logger.error("gemini_analysis_error", error=str(e), exc_info=True)
     
     async def _initialize_momentum_filter(self):
         """Initialize momentum filter and apply to watchlist."""
@@ -424,6 +602,9 @@ class TradingBot:
                     await self._keepalive_tick()
                     await asyncio.sleep(60)  # Check every minute when market is closed
                     continue
+                
+                # Run Gemini AI analysis (respects rate limit internally)
+                await self._run_gemini_analysis()
                 
                 # Handle end-of-day cancellations
                 await self._handle_eod_cancellations()
@@ -868,6 +1049,20 @@ class TradingBot:
 async def main(config_path: str = "config.yaml"):
     """Main entry point."""
     import logging
+    import os
+    
+    # Get log level from environment or default to INFO
+    log_level_str = os.getenv('LOG_LEVEL', 'INFO').upper()
+    log_level = getattr(logging, log_level_str, logging.INFO)
+    
+    # Setup Python logging (for PM2 compatibility)
+    logging.basicConfig(
+        level=log_level,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler()  # Output to stdout (PM2 captures this)
+        ]
+    )
     
     # Setup structured logging
     structlog.configure(
@@ -877,15 +1072,11 @@ async def main(config_path: str = "config.yaml"):
             structlog.processors.format_exc_info,
             structlog.processors.JSONRenderer(),
         ],
-        wrapper_class=structlog.make_filtering_bound_logger(
-            logging.INFO
-        ),
+        wrapper_class=structlog.make_filtering_bound_logger(log_level),
         context_class=dict,
         logger_factory=structlog.PrintLoggerFactory(),
         cache_logger_on_first_use=True,
     )
-    
-    logging.basicConfig(level=logging.INFO)
     
     # Load configuration
     try:

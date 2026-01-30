@@ -533,6 +533,70 @@ See **[docs/momentum/README.md](docs/momentum/README.md)** for full momentum doc
 
 ---
 
+### 🤖 Gemini AI Analysis Layer
+
+The bot can use Google's Gemini AI to analyze stocks and crypto with technical indicators, providing trade signals with confidence scores.
+
+#### Features
+
+- **Batched Analysis**: All tickers analyzed in a single API call (respects 1 call/minute limit)
+- **Technical Indicators**: RSI, MACD, Bollinger Bands calculated locally
+- **Strategy Context**: Different strategies for stocks (Wheel Strategy) vs crypto (Day Trading)
+- **Confidence Scores**: AI provides 0-1 confidence for each signal
+
+#### Quick Setup
+
+1. Get a free Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey)
+
+2. Add to `secrets.yaml`:
+```yaml
+gemini:
+  api_key: "YOUR_GEMINI_API_KEY"
+```
+
+3. Enable in `config.yaml`:
+```yaml
+gemini:
+  enabled: true
+  model: "gemini-1.5-flash"      # Fast and cheap
+  
+  enable_stocks: true             # Analyze stocks
+  enable_crypto: true             # Analyze crypto
+  
+  crypto_watchlist:               # Static crypto list for AI
+    - "BTC/USD"
+    - "ETH/USD"
+    - "SOL/USD"
+  
+  strategies:
+    stocks: "Wheel Strategy"      # Context for stock analysis
+    crypto: "Day Trading"         # Context for crypto analysis
+  
+  min_confidence: 0.6             # Only act on high-confidence signals
+```
+
+#### Example Output
+
+```
+gemini_signal | symbol=NVDA | action=BUY | confidence=0.82 | strategy=Wheel Strategy
+              | reasoning=RSI oversold at 28, MACD crossing bullish, price near BB lower band
+              
+gemini_signal | symbol=BTC/USD | action=HOLD | confidence=0.71 | strategy=Day Trading
+              | reasoning=Consolidating near resistance, wait for breakout confirmation
+```
+
+#### Technical Indicators Calculated
+
+| Indicator | Description |
+|-----------|-------------|
+| **RSI** | Relative Strength Index (14 period) |
+| **MACD** | Moving Average Convergence Divergence |
+| **Bollinger Bands** | 20-period with 2 std dev |
+| **SMA** | Simple Moving Averages (20, 50, 200) |
+| **Volume** | Relative volume vs 20-day average |
+
+---
+
 ### Crypto Trading (24/7)
 
 ```yaml
@@ -667,6 +731,54 @@ All documentation is in the `/docs` folder:
 - **[DEPLOY_TO_SERVER.md](docs/DEPLOY_TO_SERVER.md)** - General server deployment
 
 See **[docs/INDEX.md](docs/INDEX.md)** for complete documentation index.
+
+---
+
+## 🖥️ PM2 Deployment (Headless Server)
+
+For running on a headless Ubuntu server with PM2:
+
+```bash
+# Install PM2 globally
+npm install -g pm2
+
+# Start the bot
+pm2 start ecosystem.config.js
+
+# Or start individually
+pm2 start main.py --interpreter python3 --name crazy-trade-bot
+
+# Monitor
+pm2 status
+pm2 logs crazy-trade-bot
+pm2 monit
+
+# Auto-start on reboot
+pm2 startup
+pm2 save
+```
+
+### Using .env for Configuration
+
+```bash
+# Copy template
+cp .env.example .env
+
+# Edit with your keys
+nano .env
+```
+
+```env
+ALPACA_API_KEY=your_key
+ALPACA_SECRET_KEY=your_secret
+GEMINI_API_KEY=your_gemini_key
+
+# Feature toggles
+STOCKS_ENABLED=true
+CRYPTO_ENABLED=true
+GEMINI_ENABLED=true
+LOG_LEVEL=INFO
+```
 
 ---
 

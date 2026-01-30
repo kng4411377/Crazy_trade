@@ -320,5 +320,68 @@ crypto:
 
 
 # ==============================================================================
+# GEMINI AI ANALYSIS LAYER
+# ==============================================================================
+# AI-powered trade signal analysis using Google's Gemini API.
+# Batches all tickers into a single prompt (1 call per minute limit).
+# Requires: GEMINI_API_KEY in secrets.yaml
+
+gemini:
+  enabled: false                   # Master toggle for Gemini analysis
+  
+  # API Settings
+  model: "gemini-1.5-flash"        # Model to use (flash is faster/cheaper)
+  call_interval_seconds: 60        # Minimum seconds between API calls
+  timeout_seconds: 30              # API call timeout
+  
+  # Data sources toggle
+  enable_stocks: true              # Analyze stocks from dynamic watchlist
+  enable_crypto: true              # Analyze crypto from static list
+  
+  # Crypto watchlist for Gemini analysis (separate from trading crypto)
+  crypto_watchlist:
+    - "BTC/USD"
+    - "ETH/USD"
+    - "SOL/USD"
+  
+  # Strategy context passed to Gemini
+  strategies:
+    stocks: "Wheel Strategy"       # Strategy for stock analysis
+    crypto: "Day Trading"          # Strategy for crypto analysis
+  
+  # Technical indicators to calculate and send
+  indicators:
+    rsi:
+      enabled: true
+      period: 14
+    macd:
+      enabled: true
+      fast_period: 12
+      slow_period: 26
+      signal_period: 9
+    bollinger:
+      enabled: true
+      period: 20
+      std_dev: 2
+    sma:
+      enabled: true
+      periods: [20, 50, 200]
+    volume:
+      enabled: true                # Include volume analysis
+  
+  # Signal thresholds
+  min_confidence: 0.6              # Minimum AI confidence to act (0-1)
+  
+  # Prompt customization
+  prompt_style: "concise"          # "concise" | "detailed"
+  include_price_history: true      # Include recent price data
+  price_history_bars: 20           # Number of bars to include
+  
+  # Logging
+  log_prompts: false               # Log full prompts (verbose)
+  log_responses: true              # Log AI responses
+
+
+# ==============================================================================
 # END OF CONFIGURATION
 # ==============================================================================

@@ -1,18 +1,25 @@
-# Trade Bot Configuration
+# ==============================================================================
+# CRAZY TRADE BOT - UNIFIED CONFIGURATION
+# ==============================================================================
 #
-# ⚠️  IMPORTANT: API keys are NOT stored here!
-# API keys are in secrets.yaml (which is in .gitignore)
+# ⚠️  API keys are in secrets.yaml (gitignored). Never commit secrets!
+# Setup: cp config.yaml.example config.yaml  |  cp secrets.yaml.example secrets.yaml
 #
-# To set up:
-#   1. cp secrets.yaml.example secrets.yaml
-#   2. Edit secrets.yaml with your real API keys
-#   3. Never commit secrets.yaml to Git!
-#
-# See docs/SETUP_SECRETS.md for detailed instructions
+# ==============================================================================
 
-mode: "paper"          # "paper" | "live" (determines paper vs live Alpaca endpoint)
 
-# Stock watchlist (trades during market hours only)
+# ------------------------------------------------------------------------------
+# SECTION 1: CORE SETTINGS
+# ------------------------------------------------------------------------------
+
+mode: "paper"          # "paper" | "live" - START WITH PAPER!
+
+
+# ------------------------------------------------------------------------------
+# SECTION 2: STOCK WATCHLIST
+# ------------------------------------------------------------------------------
+# Stocks trade during market hours only (9:30 AM - 4:00 PM ET)
+
 watchlist: 
   - "BBBY"
   - "BYND"
@@ -32,20 +39,10 @@ watchlist:
   - "PTON"
   - "QS"
 
-# Crypto watchlist (trades 24/7)
-# Alpaca format: SYMBOL or SYMBOL/USD (USD will be added automatically)
-# crypto_watchlist:
-#   - "BTC/USD"     # Bitcoin (most liquid)
-#   - "ETH/USD"     # Ethereum (most liquid)
-#   - "DOGE/USD"    # Dogecoin (high volatility! ✅ supported)
-#   - "SHIB/USD"    # Shiba Inu (high volatility! ✅ supported)
-  # Other top cryptos supported on Alpaca:
-  # - "SOL/USD"   # Solana
-  # - "LINK/USD"  # Chainlink
-  # - "XRP/USD"   # Ripple
-  # - "LTC/USD"   # Litecoin
-  # - "AVAX/USD"  # Avalanche
-  # - "UNI/USD"   # Uniswap
+
+# ------------------------------------------------------------------------------
+# SECTION 3: POSITION SIZING & ALLOCATION
+# ------------------------------------------------------------------------------
 
 allocation:
   # Dollar-based sizing to cap risk per symbol and overall
@@ -53,7 +50,11 @@ allocation:
   per_symbol_usd: 1000         # default per-symbol budget
   per_symbol_override: {}       # e.g., {"TSLA": 1500}
   min_cash_reserve_percent: 10
-  allow_fractional: false       # MUST be true for crypto! Set to true if trading crypto_watchlist
+  allow_fractional: false       # MUST be true for crypto! Set to true if trading crypto
+
+# ------------------------------------------------------------------------------
+# SECTION 4: ENTRY STRATEGY
+# ------------------------------------------------------------------------------
 
 entries:
   type: "buy_stop"              # "buy_stop" | "buy_stop_limit"
@@ -73,6 +74,10 @@ entries:
   cancel_at_close: true
   rearm_next_session: true
 
+# ------------------------------------------------------------------------------
+# SECTION 5: EXIT STRATEGY (TRAILING STOPS)
+# ------------------------------------------------------------------------------
+
 stops:
   trailing_stop_pct: 10.0
   use_trailing_limit: false     # if true, convert to TRAIL LIMIT with limit offset
@@ -81,23 +86,9 @@ stops:
                                  # "GTC" is typical for trailing stops (stays active after entry fills)
                                  # Use "DAY" if you want stops to cancel at market close
 
-hours:
-  calendar: "XNYS"
-  allow_pre_market: false
-  allow_after_hours: false
-  skip_first_minutes: 5       # Skip first 5 minutes after open (avoid volatility)
-  skip_last_minutes: 10       # Skip last 10 minutes before close (avoid volatility)
-
-cooldowns:
-  after_stopout_minutes: 1440   # Wait at least 1 day (1440 min) before re-entering after stop-out
-                                 # Prevents revenge trading and overtrading
-                                 # Old default was 20 minutes (too short)
-
-polling:
-  price_seconds: 10
-  orders_seconds: 15
-  keepalive_seconds: 300     # Ping Alpaca every 5 minutes to keep connection alive
-  event_check_seconds: 5     # Check for order updates/fills (Alpaca REST polling)
+# ------------------------------------------------------------------------------
+# SECTION 6: RISK MANAGEMENT
+# ------------------------------------------------------------------------------
 
 risk:
   max_total_exposure_usd: 20000
@@ -105,6 +96,32 @@ risk:
   max_daily_loss_pct: 3.0     # Circuit breaker: Stop trading if daily loss > 3%
   max_daily_loss_usd: 500     # Circuit breaker: Stop trading if daily loss > $500
   max_concurrent_positions: 5  # Max 5 positions at once
+
+cooldowns:
+  after_stopout_minutes: 1440   # Wait at least 1 day before re-entering after stop-out
+
+
+# ------------------------------------------------------------------------------
+# SECTION 7: MARKET HOURS (STOCKS)
+# ------------------------------------------------------------------------------
+
+hours:
+  calendar: "XNYS"
+  allow_pre_market: false
+  allow_after_hours: false
+  skip_first_minutes: 5       # Skip first 5 minutes after open (avoid volatility)
+  skip_last_minutes: 10       # Skip last 10 minutes before close (avoid volatility)
+
+
+# ------------------------------------------------------------------------------
+# SECTION 8: POLLING & SYSTEM
+# ------------------------------------------------------------------------------
+
+polling:
+  price_seconds: 10
+  orders_seconds: 15
+  keepalive_seconds: 300     # Ping Alpaca every 5 minutes to keep connection alive
+  event_check_seconds: 5     # Check for order updates/fills (Alpaca REST polling)
 
 persistence:
   db_url: "sqlite:///bot.db"
@@ -114,4 +131,176 @@ logging:
 
 alerts:
   webhook: null
+
+
+# ==============================================================================
+# MOMENTUM INTELLIGENCE LAYER
+# ==============================================================================
+# Auto-discover trending stocks (Reddit/WSB buzz, volume anomalies). FREE providers.
+
+momentum:
+  enabled: false                 # Master toggle for momentum features
+
+  filter:
+    enabled: false
+    min_score: 0.4
+    volume_weight: 0.7
+    reddit_weight: 0.3
+    cache_duration: 3600
+    require_volume: true
+    require_reddit: false
+    fail_open: true
+
+  dynamic_watchlist:
+    enabled: false
+    update_interval: 3600
+    scan_at_start: true
+    use_reddit_trending: true
+    use_volume_movers: true
+    use_config_watchlist: true
+    max_positions: 5
+    max_watchlist_size: 20
+    min_score_to_add: 0.5
+    min_score_to_keep: 0.3
+    min_price: 5.0
+    max_price: 1000.0
+    min_volume: 500000
+    exclude_otc: true
+    always_include: []
+    blacklist: []
+    universe:
+      - "TSLA"
+      - "NVDA"
+      - "AMD"
+      - "AAPL"
+      - "MSFT"
+      - "GME"
+      - "PLTR"
+      - "AMC"
+      - "BBBY"
+      - "OKLO"
+
+  factors:
+    volume_anomaly:
+      enabled: true
+      weight: 0.40
+      rvol_threshold: 1.5
+      volume_trend_threshold: 0.2
+    reddit_attention:
+      enabled: true
+      weight: 0.30
+      mention_threshold: 50
+      velocity_weight: 0.4
+      sentiment_weight: 0.3
+    sentiment_velocity:
+      enabled: true
+      weight: 0.30
+      velocity_threshold: 10
+      sentiment_threshold: 0.6
+    retail_attention:
+      enabled: false
+      weight: 0.30
+    options_flow:
+      enabled: false
+      weight: 0.20
+    dark_pool:
+      enabled: false
+      weight: 0.10
+
+  providers:
+    yfinance:
+      enabled: true
+    apewisdom:
+      enabled: true
+    google_trends:
+      enabled: false
+    stocktwits:
+      enabled: false
+      use_rapidapi: true
+    alphavantage:
+      enabled: false
+
+  scoring:
+    min_score: 0.5
+    min_confidence: 0.4
+    parallel_limit: 10
+    cache_ttl: 300
+  monitoring:
+    health_check_interval: 300
+    log_scores: true
+    log_provider_errors: true
+
+
+# ==============================================================================
+# CRYPTOCURRENCY TRADING (24/7) - DISABLED BY DEFAULT
+# ==============================================================================
+# Set allocation.allow_fractional = true if you enable crypto!
+
+crypto:
+  enabled: false
+  watchlist: []
+  # watchlist:
+  #   - "BTC/USD"
+  #   - "ETH/USD"
+  #   - "DOGE/USD"
+  #   - "SOL/USD"
+  allocation:
+    per_symbol_usd: 500
+    per_symbol_override: {}
+  entries:
+    buy_stop_pct_above_last: 3.0
+    tif: "GTC"
+    cancel_at_close: false
+  stops:
+    trailing_stop_pct: 15.0
+    tif: "GTC"
+  risk:
+    max_total_exposure_usd: 5000
+    max_symbol_exposure_usd: 1000
+    max_concurrent_positions: 3
+
+
+# ==============================================================================
+# GEMINI AI ANALYSIS LAYER
+# ==============================================================================
+# AI trade signals via Google Gemini. Requires GEMINI_API_KEY in secrets.yaml
+
+gemini:
+  enabled: false
+  model: "gemini-1.5-flash"
+  call_interval_seconds: 60
+  timeout_seconds: 30
+  enable_stocks: true
+  enable_crypto: true
+  crypto_watchlist:
+    - "BTC/USD"
+    - "ETH/USD"
+    - "SOL/USD"
+  strategies:
+    stocks: "Wheel Strategy"
+    crypto: "Day Trading"
+  indicators:
+    rsi:
+      enabled: true
+      period: 14
+    macd:
+      enabled: true
+      fast_period: 12
+      slow_period: 26
+      signal_period: 9
+    bollinger:
+      enabled: true
+      period: 20
+      std_dev: 2
+    sma:
+      enabled: true
+      periods: [20, 50, 200]
+    volume:
+      enabled: true
+  min_confidence: 0.6
+  prompt_style: "concise"
+  include_price_history: true
+  price_history_bars: 20
+  log_prompts: false
+  log_responses: true
 
