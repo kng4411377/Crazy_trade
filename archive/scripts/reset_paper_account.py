@@ -9,8 +9,8 @@ import sys
 import asyncio
 from pathlib import Path
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add project root to path (script lives in archive/scripts/)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from src.alpaca_client import AlpacaClient
 from src.config import BotConfig

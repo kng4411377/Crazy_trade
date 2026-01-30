@@ -6,7 +6,8 @@ echo "  CRAZY TRADE BOT - DATA CHECK"
 echo "======================================"
 echo ""
 
-cd "$(dirname "$0")"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR/../.."
 
 echo "📁 Files Check:"
 echo "--------------"

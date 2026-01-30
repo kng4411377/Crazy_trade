@@ -422,6 +422,37 @@ class TradingBot:
         except Exception as e:
             logger.error("gemini_analysis_error", error=str(e), exc_info=True)
     
+    def _gemini_allows_entry(self, symbol: str) -> bool:
+        """
+        Whether to allow placing a new entry order for this symbol.
+        
+        - If Gemini AI layer is disabled or no API key: always True (use old method).
+        - If Gemini is enabled: True only when we have a BUY signal with confidence >= min_confidence.
+        """
+        if not self.gemini_analyzer or not self.gemini_config or not self.gemini_config.get('enabled', False):
+            return True  # Old method: no AI gating
+        signals = self.gemini_signals or {}
+        # Normalize symbol for lookup (e.g. BTC/USD -> BTC-USD)
+        signal = signals.get(symbol) or signals.get(symbol.replace("/", "-"))
+        if not signal:
+            return False  # No signal yet; wait for next Gemini run
+        min_conf = self.gemini_config.get('min_confidence', 0.6)
+        return signal.action == "BUY" and signal.confidence >= min_conf
+    
+    def _gemini_says_sell(self, symbol: str) -> bool:
+        """
+        Whether Gemini signals SELL for this symbol (highest-priority exit).
+        Only used when Gemini is enabled; otherwise exit is trailing-stop only.
+        """
+        if not self.gemini_analyzer or not self.gemini_config or not self.gemini_config.get('enabled', False):
+            return False
+        signals = self.gemini_signals or {}
+        signal = signals.get(symbol) or signals.get(symbol.replace("/", "-"))
+        if not signal:
+            return False
+        min_conf = self.gemini_config.get('min_confidence', 0.6)
+        return signal.action == "SELL" and signal.confidence >= min_conf
+    
     async def _initialize_momentum_filter(self):
         """Initialize momentum filter and apply to watchlist."""
         if not self.momentum_filter_config or not self.momentum_filter_config.get('enabled', False):
@@ -672,7 +703,16 @@ class TradingBot:
                     logger.debug("skipping_new_entry_at_position_limit", symbol=symbol)
                     continue
                 
-                await sm.process(position_values, account_value)
+                # When Gemini enabled: only place new entries for symbols with BUY signal
+                allow_new_entry = self._gemini_allows_entry(symbol)
+                # When Gemini enabled: SELL signal is highest-priority exit for held positions
+                gemini_says_sell = self._gemini_says_sell(symbol)
+                await sm.process(
+                    position_values,
+                    account_value,
+                    allow_new_entry=allow_new_entry,
+                    gemini_says_sell=gemini_says_sell,
+                )
             except Exception as e:
                 logger.error(
                     "symbol_processing_error",

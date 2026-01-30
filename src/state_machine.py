@@ -73,30 +73,51 @@ class SymbolStateMachine:
 
         return SymbolStatus.NO_POSITION
 
-    async def process(self, current_positions: Dict[str, float], account_value: Optional[float]):
+    async def process(
+        self,
+        current_positions: Dict[str, float],
+        account_value: Optional[float],
+        allow_new_entry: bool = True,
+        gemini_says_sell: bool = False,
+    ):
         """
         Process state machine logic for this symbol.
-        
+
         Args:
             current_positions: Dict of symbol -> position value for exposure checking
             account_value: Total account value
+            allow_new_entry: If False, do not place new entry orders (e.g. when using
+                Gemini and AI did not signal BUY). When True, use legacy behavior.
+            gemini_says_sell: If True (Gemini enabled and AI signaled SELL), exit
+                position at market as highest-priority exit; overrides trailing stop.
         """
         status = self.get_status()
         logger.debug("processing_symbol", symbol=self.symbol, status=status.value)
 
         if status == SymbolStatus.NO_POSITION:
-            await self._handle_no_position(current_positions, account_value)
+            await self._handle_no_position(current_positions, account_value, allow_new_entry)
         elif status == SymbolStatus.ENTRY_PENDING:
             await self._handle_entry_pending()
         elif status == SymbolStatus.POSITION_OPEN:
-            await self._handle_position_open()
+            await self._handle_position_open(gemini_says_sell)
         elif status == SymbolStatus.COOLDOWN:
             await self._handle_cooldown()
 
     async def _handle_no_position(
-        self, current_positions: Dict[str, float], account_value: Optional[float]
+        self,
+        current_positions: Dict[str, float],
+        account_value: Optional[float],
+        allow_new_entry: bool = True,
     ):
         """Handle NO_POSITION state - create entry order if conditions met."""
+        if not allow_new_entry:
+            logger.debug(
+                "skipping_entry_ai_not_signaling",
+                symbol=self.symbol,
+                reason="Gemini did not signal BUY or confidence below threshold",
+            )
+            return
+
         # Check if we should re-arm
         with self.db.get_session() as session:
             state = self.db.get_symbol_state(session, self.symbol)
@@ -162,8 +183,8 @@ class SymbolStateMachine:
         # We just need to monitor fills (handled by event handlers)
         logger.debug("entry_pending", symbol=self.symbol)
 
-    async def _handle_position_open(self):
-        """Handle POSITION_OPEN state - ensure trailing stop exists and is healthy."""
+    async def _handle_position_open(self, gemini_says_sell: bool = False):
+        """Handle POSITION_OPEN state. When Gemini says SELL, exit at market (highest priority)."""
         positions = self.alpaca.get_positions()
         position = positions.get(self.symbol)
         
@@ -172,8 +193,33 @@ class SymbolStateMachine:
             return
 
         position_qty = int(position["quantity"])
-        
-        # Check for existing trailing stop
+
+        # Highest-priority exit: AI signaled SELL → close position at market
+        if gemini_says_sell:
+            open_orders = self.alpaca.get_open_orders()
+            for order_wrapper in open_orders:
+                if (
+                    order_wrapper.contract.symbol == self.symbol
+                    and order_wrapper.order.side.value.upper() == "SELL"
+                ):
+                    await self.alpaca.cancel_order(order_wrapper)
+            if self.alpaca.close_position(self.symbol):
+                with self.db.get_session() as session:
+                    self.db.add_event(
+                        session,
+                        event_type="position_closed_ai_exit",
+                        symbol=self.symbol,
+                        payload={"qty": position_qty, "reason": "Gemini signaled SELL"},
+                    )
+                logger.info(
+                    "position_closed_ai_signal",
+                    symbol=self.symbol,
+                    qty=position_qty,
+                    reason="Gemini SELL signal (highest-priority exit)",
+                )
+            return
+
+        # Normal path: ensure trailing stop exists and is healthy
         open_orders = self.alpaca.get_open_orders()
         trailing_stops = [
             order_wrapper

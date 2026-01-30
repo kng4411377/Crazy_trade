@@ -24,17 +24,17 @@ def save_yaml(filepath: Path, data: Dict[str, Any]):
 def find_new_keys(template: Dict, current: Dict, prefix: str = "") -> Set[str]:
     """Find keys that exist in template but not in current config."""
     new_keys = set()
-    
+
     for key, value in template.items():
         full_key = f"{prefix}.{key}" if prefix else key
-        
+
         if key not in current:
             new_keys.add(full_key)
         elif isinstance(value, dict) and isinstance(current.get(key), dict):
             # Recursively check nested dictionaries
             nested_new = find_new_keys(value, current[key], full_key)
             new_keys.update(nested_new)
-    
+
     return new_keys
 
 
@@ -44,7 +44,7 @@ def merge_configs(template: Dict, current: Dict) -> Dict[str, Any]:
     Adds new keys from template with their default values.
     """
     merged = current.copy()
-    
+
     for key, template_value in template.items():
         if key not in merged:
             # New key - add it with template's default
@@ -53,39 +53,39 @@ def merge_configs(template: Dict, current: Dict) -> Dict[str, Any]:
         elif isinstance(template_value, dict) and isinstance(merged[key], dict):
             # Both are dicts - merge recursively
             merged[key] = merge_configs(template_value, merged[key])
-    
+
     return merged
 
 
 def merge_config_file(config_name: str) -> bool:
     """Merge a specific config file.
-    
+
     Args:
-        config_name: Name of config file (e.g., 'config.yaml', 'momentum_config.yaml')
-        
+        config_name: Name of config file (e.g., 'config.yaml')
+
     Returns:
         True if merged successfully
     """
     print(f"\n📝 Processing {config_name}")
     print("━" * 50)
-    
-    # Paths
+
+    # Paths (run from project root)
     current_path = Path(config_name)
     template_path = Path(f"{config_name}.example")
     backup_path = Path(f"{config_name}.backup")
-    
+
     # Check files exist
     if not template_path.exists():
         print(f"⚠️  {template_path} not found - skipping")
         return False
-    
+
     if not current_path.exists():
         print(f"📝 No existing {config_name} found.")
         print("   Creating from template...")
         current_path.write_text(template_path.read_text())
         print(f"✅ {config_name} created! Please customize it.")
         return True
-    
+
     # Load configs
     print("📖 Loading configurations...")
     try:
@@ -94,46 +94,46 @@ def merge_config_file(config_name: str) -> bool:
     except Exception as e:
         print(f"❌ Error loading YAML: {e}")
         sys.exit(1)
-    
+
     # Find new keys
     print("🔍 Analyzing differences...")
     new_keys = find_new_keys(template, current)
-    
+
     if not new_keys:
         print("✅ This config is up to date! No new fields to add.")
         return True
-    
+
     # Show new keys
     print()
     print(f"📝 Found {len(new_keys)} new field(s):")
     for key in sorted(new_keys):
         print(f"  • {key}")
     print()
-    
+
     # Ask for confirmation
     response = input(f"🤔 Merge new fields into {config_name}? (y/n): ").strip().lower()
-    
+
     if response != 'y':
         print("❌ Merge cancelled.")
         print()
         print("💡 To review changes manually:")
         print(f"   diff {config_name} {template_path}")
         return False
-    
+
     # Backup current config
     print()
     print("💾 Creating backup...")
     backup_path.write_text(current_path.read_text())
     print(f"   ✅ Backed up to {backup_path}")
-    
+
     # Merge configs
     print()
     print("🔧 Merging configurations...")
     merged = merge_configs(template, current)
-    
+
     # Save merged config
     save_yaml(current_path, merged)
-    
+
     print()
     print("━" * 50)
     print(f"✅ {config_name} updated successfully!")
@@ -147,19 +147,16 @@ def main():
     print("🔄 Smart Config Merger")
     print("━" * 50)
     print()
-    print("This tool merges new features from .example templates")
-    print("into your local config files while preserving your settings.")
+    print("This tool merges new features from config.yaml.example")
+    print("into your local config.yaml while preserving your settings.")
     print()
-    
-    # List of config files to merge
-    configs_to_merge = [
-        "config.yaml",
-        "momentum_config.yaml",
-    ]
-    
+
+    # Single unified config
+    configs_to_merge = ["config.yaml"]
+
     # Track results
     results = {}
-    
+
     for config_name in configs_to_merge:
         try:
             success = merge_config_file(config_name)
@@ -167,12 +164,12 @@ def main():
         except Exception as e:
             print(f"\n❌ Error processing {config_name}: {e}")
             results[config_name] = False
-    
+
     # Summary
     print("\n" + "━" * 50)
     print("📊 SUMMARY")
     print("━" * 50)
-    
+
     for config_name, success in results.items():
         if success:
             print(f"  ✅ {config_name}")
@@ -180,23 +177,14 @@ def main():
             print(f"  ⚠️  {config_name} (skipped - no template)")
         else:
             print(f"  ❌ {config_name} (failed or cancelled)")
-    
+
     print()
     print("📋 Next steps:")
-    print("  1. Review updated config files for new fields")
+    print("  1. Review updated config.yaml for new fields")
     print("  2. Customize new settings as needed")
-    print("  3. Check .example files for detailed comments")
+    print("  3. Check config.yaml.example for detailed comments")
     print()
-    
-    # Check if any configs were actually updated
-    if any(results.values()):
-        print("💡 Recent features added:")
-        print("  • entry_price_strategy - Use SMA or opening price")
-        print("  • momentum_layer - Dynamic watchlist generation")
-        print("  • tif - Configurable time-in-force")
-        print()
 
 
 if __name__ == "__main__":
     main()
-

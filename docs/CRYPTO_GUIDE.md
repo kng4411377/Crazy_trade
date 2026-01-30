@@ -14,7 +14,7 @@ This bot now supports **cryptocurrency trading** alongside stocks, using the sam
 
 ### Option 1: Mixed (Stocks + Crypto)
 
-Use the regular `config.yaml` with both watchlists:
+Use `config.yaml` and enable the crypto section:
 
 ```yaml
 # Stock watchlist (trades during market hours only)
@@ -22,31 +22,38 @@ watchlist:
   - "GME"
   - "AMC"
 
-# Crypto watchlist (trades 24/7)
-crypto_watchlist:
-  - "BTC/USD"
-  - "ETH/USD"
-  - "DOGE/USD"
+# Crypto section (same config.yaml)
+crypto:
+  enabled: true
+  watchlist:
+    - "BTC/USD"
+    - "ETH/USD"
+    - "DOGE/USD"
+# Set allocation.allow_fractional = true when crypto is enabled
 ```
 
 Run the bot:
 ```bash
-python main.py config.yaml
+./run.sh
 ```
 
 ### Option 2: Crypto-Only
 
-Use the dedicated crypto config:
+Use the same `config.yaml` with stocks disabled and crypto enabled:
 
+```yaml
+watchlist: []   # No stocks
+
+crypto:
+  enabled: true
+  watchlist:
+    - "BTC/USD"
+    - "ETH/USD"
+```
+
+Run the bot:
 ```bash
-# Copy and customize
-cp config.crypto.yaml my_crypto.yaml
-
-# Edit your crypto watchlist
-nano my_crypto.yaml
-
-# Run crypto-only bot
-python main.py config.crypto.yaml
+./run.sh
 ```
 
 ## ⚙️ Configuration Differences
@@ -285,7 +292,7 @@ It shouldn't! Crypto trades 24/7. Check:
 
 1. **Start with paper trading**
    ```bash
-   python main.py config.crypto.yaml
+   ./run.sh   # with crypto.enabled = true in config.yaml
    ```
 
 2. **Monitor in real-time**

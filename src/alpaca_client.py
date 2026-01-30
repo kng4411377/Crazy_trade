@@ -789,11 +789,27 @@ class AlpacaClient:
             logger.error("account_summary_fetch_failed", error=str(e))
             return {}
 
+    def close_position(self, symbol: str) -> bool:
+        """
+        Close a single open position at market (AI exit / highest-priority exit).
+        Cancels any open orders for the symbol first, then liquidates the position.
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            self.trading_client.close_position(symbol)
+            logger.info("position_closed_ai_exit", symbol=symbol)
+            return True
+        except Exception as e:
+            logger.error("close_position_failed", symbol=symbol, error=str(e))
+            return False
+
     def close_all_positions(self) -> bool:
         """
         Close all open positions at market price.
         Useful for resetting paper trading or emergency exit.
-        
+
         Returns:
             True if successful, False otherwise
         """

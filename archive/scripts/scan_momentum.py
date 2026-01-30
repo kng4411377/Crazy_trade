@@ -14,8 +14,8 @@ import sys
 from pathlib import Path
 import yaml
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add project root to path (script lives in archive/scripts/)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from src.momentum.discovery import TrendingStockDiscovery
 from src.momentum.providers.yfinance_provider import YFinanceProvider

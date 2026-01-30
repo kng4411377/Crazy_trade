@@ -44,17 +44,7 @@ else
     echo "✅ config.yaml already exists"
 fi
 
-if [ ! -f "momentum_config.yaml" ]; then
-    if [ -f "momentum_config.yaml.example" ]; then
-        echo "📝 Creating momentum_config.yaml from template..."
-        cp momentum_config.yaml.example momentum_config.yaml
-        echo "   ✅ momentum_config.yaml created (momentum layer disabled by default)"
-    else
-        echo "⚠️  Warning: momentum_config.yaml.example not found"
-    fi
-else
-    echo "✅ momentum_config.yaml already exists"
-fi
+# Momentum settings are in config.yaml under the "momentum:" section (no separate file)
 
 if [ ! -f "secrets.yaml" ]; then
     if [ -f "secrets.yaml.example" ]; then
@@ -78,8 +68,12 @@ echo "To start the bot, run:"
 echo "   ./run.sh"
 echo ""
 echo "⚠️  IMPORTANT:"
-echo "   1. Get Alpaca API keys from https://app.alpaca.markets/"
-echo "   2. Update config.yaml with your API keys"
-echo "   3. Test in paper trading mode first"
+echo "   1. Add API keys to secrets.yaml (Alpaca + Gemini):"
+echo "      - Alpaca: https://app.alpaca.markets/ (paper trading keys)"
+echo "      - Gemini: https://aistudio.google.com/app/apikey (optional, for AI analysis)"
+echo "   2. Test connections before running the bot:"
+echo "      python3 test_connection.py          # Alpaca"
+echo "      python scripts/test_gemini.py --api-only   # Gemini (if enabled)"
+echo "   3. Use paper trading mode first (mode: \"paper\" in config.yaml)"
 echo ""
 

@@ -9,13 +9,13 @@ Your bot now supports crypto trading! Here's how to get started:
 3. **Auto-detection** - symbols with `/` are crypto
 4. **Config validation** - auto-adds `/USD` suffix
 5. **API updates** - shows crypto separately in status
-6. **Crypto-only config** - `config.crypto.yaml`
+6. **Crypto section** in `config.yaml` (crypto.enabled, crypto.watchlist)
 
 ## 🎯 Quick Start
 
 ### Option 1: Add Crypto to Existing Config
 
-Edit `config.yaml`:
+Edit `config.yaml` and enable the crypto section:
 
 ```yaml
 # Your existing stock watchlist
@@ -24,39 +24,41 @@ watchlist:
   - "AMC"
   # ... your stocks
 
-# NEW: Add crypto watchlist
-crypto_watchlist:
-  - "BTC/USD"      # Bitcoin
-  - "ETH/USD"      # Ethereum
-  - "DOGE/USD"     # Dogecoin
-  - "SHIB/USD"     # Shiba Inu
+# Crypto section (same config.yaml)
+crypto:
+  enabled: true
+  watchlist:
+    - "BTC/USD"      # Bitcoin
+    - "ETH/USD"      # Ethereum
+    - "DOGE/USD"     # Dogecoin
+    - "SHIB/USD"     # Shiba Inu
 ```
 
-**Important**: Set `allow_fractional: true` for crypto:
-```yaml
-allocation:
-  allow_fractional: true  # Required for crypto!
-```
+**Important**: Set `allocation.allow_fractional: true` when crypto is enabled.
 
 Run normally:
 ```bash
-python main.py config.yaml
+./run.sh
 ```
 
 ### Option 2: Crypto-Only Bot
 
-Use the dedicated crypto config:
+Use the same `config.yaml` with stocks disabled:
 
-```bash
-# Use the crypto-only config
-python main.py config.crypto.yaml
+```yaml
+watchlist: []   # No stocks
+
+crypto:
+  enabled: true
+  watchlist:
+    - "BTC/USD"
+    - "ETH/USD"
 ```
 
-This config:
-- ✅ Has no stocks (empty `watchlist`)
-- ✅ Only crypto symbols
-- ✅ Optimized settings for crypto
-- ✅ Uses separate database (`bot_crypto.db`)
+Run:
+```bash
+./run.sh
+```
 
 ## 📊 Key Differences: Stocks vs Crypto
 
@@ -71,24 +73,26 @@ This config:
 
 ## ⚙️ Recommended Settings for Crypto
 
+In `config.yaml`, under the `crypto:` section:
+
 ```yaml
-crypto_watchlist:
-  - "BTC/USD"
-  - "ETH/USD"
-  - "DOGE/USD"
-
-allocation:
-  per_symbol_usd: 500          # Smaller positions
-  allow_fractional: true       # REQUIRED!
-
-entries:
-  buy_stop_pct_above_last: 3.0 # Tighter entry
-  tif: "GTC"                    # Not DAY
-  cancel_at_close: false        # No close
-
-stops:
-  trailing_stop_pct: 8.0        # Tighter stop
+crypto:
+  enabled: true
+  watchlist:
+    - "BTC/USD"
+    - "ETH/USD"
+    - "DOGE/USD"
+  allocation:
+    per_symbol_usd: 500
+  entries:
+    buy_stop_pct_above_last: 3.0
+    tif: "GTC"
+    cancel_at_close: false
+  stops:
+    trailing_stop_pct: 8.0
 ```
+
+Set `allocation.allow_fractional: true` at top level when crypto is enabled.
 
 ## 🔍 Test It
 
@@ -99,7 +103,7 @@ python -c "from src.config import BotConfig; config = BotConfig.from_yaml('confi
 
 2. **Run bot**:
 ```bash
-python main.py config.yaml
+./run.sh
 ```
 
 You should see:

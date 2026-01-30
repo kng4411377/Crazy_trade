@@ -277,14 +277,13 @@ momentum:
 # ==============================================================================
 # CRYPTOCURRENCY TRADING (24/7) - DISABLED BY DEFAULT
 # ==============================================================================
-# Crypto trades 24/7, no market hours restrictions.
-# IMPORTANT: Set allocation.allow_fractional = true for crypto!
+# All crypto settings live here in config.yaml (no separate config.crypto.yaml).
+# Crypto trades 24/7. Set allocation.allow_fractional = true when crypto.enabled = true.
 
 crypto:
   enabled: false                 # Master toggle for crypto trading
   
-  # Crypto watchlist (only used if crypto.enabled = true)
-  # Alpaca format: SYMBOL/USD
+  # Crypto watchlist (only used if crypto.enabled = true). Alpaca format: SYMBOL/USD
   watchlist: []
   # watchlist:
   #   - "BTC/USD"                # Bitcoin (most liquid)
@@ -292,24 +291,27 @@ crypto:
   #   - "DOGE/USD"               # Dogecoin (high volatility!)
   #   - "SHIB/USD"               # Shiba Inu (high volatility!)
   #   - "SOL/USD"                # Solana
+  #   - "AVAX/USD"               # Avalanche
+  #   - "UNI/USD"                # Uniswap
   #   - "LINK/USD"               # Chainlink
   #   - "LTC/USD"                # Litecoin
-  #   - "AVAX/USD"               # Avalanche
+  #   - "XRP/USD"                # Ripple
   
   # Crypto-specific allocation (overrides main allocation for crypto)
   allocation:
     per_symbol_usd: 500          # Smaller positions for volatile crypto
-    per_symbol_override: {}      # Override per coin: {"BTC/USD": 1000}
+    per_symbol_override: {}      # Override per coin: {"BTC/USD": 1000, "ETH/USD": 1000}
   
-  # Crypto-specific entry strategy
+  # Crypto-specific entry strategy (GTC = no market close)
   entries:
     buy_stop_pct_above_last: 3.0 # Tighter entry for 24/7 markets
     tif: "GTC"                   # GTC for crypto (no market close)
     cancel_at_close: false       # No close for crypto
+    rearm_next_session: false    # Always active for crypto
   
   # Crypto-specific stops
   stops:
-    trailing_stop_pct: 15.0      # Wider stops for volatile crypto
+    trailing_stop_pct: 15.0      # Wider stops for volatile crypto (or 8.0 for tighter)
     tif: "GTC"
   
   # Crypto-specific risk

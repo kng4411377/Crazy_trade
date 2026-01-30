@@ -116,14 +116,13 @@ crypto:
 ### Running the Bot
 
 ```bash
-# Start the bot (stocks mode)
+# Start the bot (uses config.yaml)
 ./run.sh
-
-# Start with crypto config
-./run.sh config.crypto.yaml
 
 # Or run directly
 python3 main.py
+
+# For crypto: set crypto.enabled = true and add symbols to crypto.watchlist in config.yaml, then ./run.sh
 
 # Stop gracefully
 Ctrl+C
@@ -137,6 +136,23 @@ python3 test_connection.py
 
 # Expected: ✅ Connected! Account Value: $100,000.00
 ```
+
+### Scripts (Startup & Tests)
+
+| Purpose | Command |
+|--------|--------|
+| **Start bot** | `./run.sh` |
+| **Start API server** | `./run_api.sh` |
+| **Background (status/stop)** | `./start_background.sh [start\|stop\|status]` |
+| **First-time setup** | `./setup.sh` |
+| **Test Alpaca** | `python3 test_connection.py` |
+| **Test crypto symbols** | `python3 test_crypto_symbols.py` |
+| **Test everything** | `python scripts/test_all.py` |
+| **Test Gemini AI** | `python scripts/test_gemini.py` |
+| **Test order/fills** | `./verify_fills.sh` (API must be running) |
+| **Run pytest** | `./run_tests.sh` or `python run_tests.py` |
+
+Other scripts (momentum scanner, export trades, reset, etc.) are in **`archive/`** — see `archive/README.md`.
 
 ---
 
@@ -276,12 +292,13 @@ crazy_trade/
 │           ├── reddit_attention.py   # Reddit buzz scoring
 │           └── volume_anomaly.py     # Volume spike detection
 │
-├── scripts/                 # Utility scripts
-│   ├── scan_momentum.py    # 🦍 Momentum scanner (find trending stocks)
-│   ├── show_performance.py # View P&L report
-│   ├── export_trades.py    # Export trades to CSV
-│   ├── check_status.py     # Check bot status
-│   └── reset_paper_account.py
+├── scripts/                 # Test & main scripts
+│   ├── test_all.py         # Full test (Alpaca, Gemini, momentum, order)
+│   └── test_gemini.py      # Test Gemini AI connection & analysis
+├── archive/                 # Archived (limited-usage) scripts
+│   ├── shell/              # reset_bot.sh, update_config.sh, check_bot_data.sh
+│   ├── scripts/            # scan_momentum, export_trades, show_performance, etc.
+│   └── README.md            # What’s archived and how to run
 │
 ├── docs/                    # Documentation
 │   ├── QUICKSTART.md       # 5-minute setup guide
@@ -334,15 +351,12 @@ SQLite database (`bot.db`) tracks all activity:
 
 ### View Performance
 
+Archived scripts (run from project root when needed):
+
 ```bash
-# Show P&L report
-python scripts/show_performance.py
-
-# Export trades to CSV
-python scripts/export_trades.py
-
-# Check bot status
-python scripts/check_status.py
+python archive/scripts/show_performance.py   # P&L report
+python archive/scripts/export_trades.py      # Export trades to CSV
+python archive/scripts/check_status.py       # Bot status from DB
 ```
 
 ### Logs
@@ -454,8 +468,8 @@ The bot includes a **Momentum Intelligence Layer** that can discover and filter 
 #### Quick Start - Momentum Scanner
 
 ```bash
-# Scan for trending stocks with social buzz
-python scripts/scan_momentum.py
+# Scan for trending stocks with social buzz (archived script)
+python archive/scripts/scan_momentum.py
 
 # Output shows:
 # 🦍 EARLY SIGNALS - Reddit buzz before volume spike (best entry!)
@@ -630,12 +644,11 @@ allocation:
     BTC/USD: 2000          # More for Bitcoin
 ```
 
-### Multiple Configs
+### Custom config file
 
 ```bash
-# Run with custom config
-./run.sh config.crypto.yaml
-./run.sh my_aggressive_config.yaml
+# Single config.yaml holds stocks + crypto. For a different file:
+./run.sh path/to/my_config.yaml
 ```
 
 ---
@@ -790,14 +803,11 @@ When you pull new code updates:
 # Your local configs are gitignored - safe from overwrites!
 git pull
 
-# Merge new features into your config
+# Merge new features from config.yaml.example into your config.yaml (keeps your settings)
 python3 merge_config.py
 
-# Or review changes manually
-python3 merge_config.py
-
-# Or see what changed
-./update_config.sh
+# Or see what changed (archived)
+./archive/shell/update_config.sh
 
 # Update dependencies
 pip install -r requirements.txt --upgrade

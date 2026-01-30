@@ -13,8 +13,7 @@ Your Alpaca API keys should **NEVER** be committed to Git. We keep them in a sep
 cp config.yaml.example config.yaml
 cp secrets.yaml.example secrets.yaml
 
-# Optional: for crypto trading
-cp config.crypto.yaml.example config.crypto.yaml
+# Crypto: enable crypto.enabled and set crypto.watchlist in config.yaml (no separate file)
 ```
 
 ### Step 2: Get Your Alpaca API Keys
@@ -54,14 +53,12 @@ crazy_trade/
 ├── config.yaml.example      ✅ Safe to commit (template)
 ├── secrets.yaml             ❌ NEVER commit (has API keys - gitignored)
 ├── secrets.yaml.example     ✅ Safe to commit (template)
-├── config.crypto.yaml       ❌ NEVER commit (your crypto settings - gitignored)
-├── config.crypto.yaml.example ✅ Safe to commit (template)
-└── .gitignore              ✅ Excludes config.yaml, secrets.yaml, etc.
+└── .gitignore               ✅ Excludes config.yaml, secrets.yaml
 ```
 
-**Why both files are gitignored:**
+**Why these files are gitignored:**
 - `secrets.yaml` - Contains your API keys (security risk)
-- `config.yaml` - Contains your personal strategy settings (prevents git conflicts)
+- `config.yaml` - Contains your personal strategy and crypto settings (prevents git conflicts)
 
 ---
 
@@ -191,8 +188,6 @@ python3 test_connection.py
 - `config.yaml.example` - Template for config (safe to commit)
 - `secrets.yaml` - Your API keys (gitignored, never committed)
 - `secrets.yaml.example` - Template for secrets (safe to commit)
-- `config.crypto.yaml` - Your crypto settings (gitignored, optional)
-- `config.crypto.yaml.example` - Template for crypto (safe to commit)
 - `.gitignore` - Excludes local config and secrets files
 - `SETUP_SECRETS.md` - This guide
 

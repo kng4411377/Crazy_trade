@@ -167,7 +167,17 @@ class BotConfig(BaseModel):
         # Load main config
         with open(path, "r") as f:
             data = yaml.safe_load(f)
-        
+        if data is None:
+            data = {}
+
+        # Single config: derive top-level crypto_watchlist from crypto section when enabled
+        if "crypto_watchlist" not in data:
+            crypto_section = data.get("crypto") or {}
+            if crypto_section.get("enabled") and crypto_section.get("watchlist"):
+                data["crypto_watchlist"] = crypto_section.get("watchlist", [])
+            else:
+                data["crypto_watchlist"] = []
+
         # Load secrets from secrets.yaml
         secrets_path = path.parent / "secrets.yaml"
         if secrets_path.exists():
