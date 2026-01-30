@@ -36,19 +36,23 @@ docs/
 
 ### New Users Start Here
 
-1. **[QUICKSTART.md](QUICKSTART.md)** ⭐
+1. **[QUICK_START_GUIDE.md](QUICK_START_GUIDE.md)** ⭐
+   - Essential scripts (what to run)
+   - Bot + API + system monitor (PM2)
+   - Quick reference table
+
+2. **[QUICKSTART.md](QUICKSTART.md)**
    - 5-minute setup guide
    - Installation steps
    - First run walkthrough
    - Basic configuration
 
-2. **[SETUP_SECRETS.md](SETUP_SECRETS.md)**
-   - Alpaca API key setup
+3. **[SETUP_SECRETS.md](SETUP_SECRETS.md)**
+   - Single file for secrets: `secrets.yaml` (Alpaca, Gemini, optional `env:`)
    - Security best practices
-   - Environment variables
    - Troubleshooting auth issues
 
-3. **[CONFIGURATION.md](CONFIGURATION.md)**
+4. **[CONFIGURATION.md](CONFIGURATION.md)**
    - Complete config.yaml reference
    - All configuration options explained
    - Entry strategies (current/SMA/opening)

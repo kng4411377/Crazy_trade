@@ -27,13 +27,24 @@ mode: "paper"          # "paper" | "live" - START WITH PAPER!
 # SECTION 2: STOCK WATCHLIST
 # ------------------------------------------------------------------------------
 # Stocks trade during market hours only (9:30 AM - 4:00 PM ET)
+# Same list is used for momentum.dynamic_watchlist.universe (see &watchlist / *watchlist)
 
-watchlist: 
+watchlist: &watchlist
   - "AAPL"
   - "TSLA"
   - "NVDA"
   - "AMD"
   - "MSFT"
+  - "GOOGL"
+  - "META"
+  - "AMZN"
+  - "GME"
+  - "PLTR"
+  - "SOFI"
+  - "COIN"
+  - "MSTR"
+  - "SMCI"
+  - "ARM"
 
 
 # ------------------------------------------------------------------------------
@@ -184,23 +195,8 @@ momentum:
     always_include: []           # Always trade these: ["TSLA", "NVDA"]
     blacklist: []                # Never trade these: ["BBBY", "AMC"]
     
-    # Universe to scan (base list for discovery)
-    universe:
-      - "TSLA"
-      - "NVDA"
-      - "AMD"
-      - "AAPL"
-      - "MSFT"
-      - "GOOGL"
-      - "META"
-      - "AMZN"
-      - "GME"
-      - "PLTR"
-      - "SOFI"
-      - "COIN"
-      - "MSTR"
-      - "SMCI"
-      - "ARM"
+    # Universe to scan (base list for discovery) — reuses watchlist above
+    universe: *watchlist
   
   # --------------------------------------------------------------------------
   # MOMENTUM FACTORS
@@ -351,7 +347,7 @@ gemini:
     stocks: "Wheel Strategy"       # Strategy for stock analysis
     crypto: "Day Trading"          # Strategy for crypto analysis
   
-  # Technical indicators to calculate and send
+  # Technical indicators (switches: only enabled ones are calculated — saves CPU)
   indicators:
     rsi:
       enabled: true
@@ -370,6 +366,13 @@ gemini:
       periods: [20, 50, 200]
     volume:
       enabled: true                # Include volume analysis
+    vwap:
+      enabled: true                # Price vs VWAP (intraday context)
+    obv:
+      enabled: false               # On-Balance Volume (volume flow)
+    atr:
+      enabled: true                # Volatility (ATR 14)
+      period: 14
   
   # Signal thresholds
   min_confidence: 0.6              # Minimum AI confidence to act (0-1)

@@ -52,6 +52,7 @@ config.local.yaml
 # Local config files (use *.example templates instead)
 config.yaml
 momentum_config.yaml
+health_status.json   # Written by system_monitor.py (low_power_mode)
 
 # Environment variables (API keys and secrets)
 .env

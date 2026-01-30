@@ -1,6 +1,12 @@
-# 🔑 .env File Setup Guide
+# 🔑 Environment Variables for Momentum / Optional Providers
 
-## Problem
+**Preferred:** Put all secrets in **`secrets.yaml`** (single file). Use the optional `env:` section to export keys like `ALPHAVANTAGE_API_KEY`, `RAPIDAPI_KEY` to the environment. See **docs/SETUP_SECRETS.md** and `secrets.yaml.example`.
+
+If you still use a `.env` file (e.g. for momentum providers), follow this guide.
+
+---
+
+## Problem (when using .env)
 
 You set `ALPHAVANTAGE_API_KEY` in `.env` but the bot still says "no_alphavantage_provider_available".
 

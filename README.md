@@ -14,9 +14,13 @@ This bot continuously monitors your watchlist and automatically:
 ✅ **Manages position sizing** based on dollar allocation and exposure limits  
 ✅ **Circuit breakers** - Stops trading if daily loss limits are exceeded  
 ✅ **🦍 Momentum Scanner** - Find trending stocks via Reddit/WSB buzz and volume spikes  
+✅ **System monitor** - CPU/temp checks; auto low-power mode (RSI-only) when overloaded  
+✅ **🤖 Gemini AI** - Optional technical analysis (RSI, MACD, VWAP, OBV, ATR) with entry/exit signals  
 
 ### Key Features
 
+- **🤖 Gemini AI Layer**: Optional RSI, MACD, Bollinger, VWAP, OBV, ATR; BUY/SELL signals with confidence
+- **System monitor** (`system_monitor.py`): Writes `health_status.json`; bot switches to RSI-only when CPU > 80% or temp ≥ 75°C; recovers when CPU < 40% for 3 checks
 - **🦍 Momentum Intelligence Layer**: Find trending stocks via Reddit/WSB buzz, volume anomalies, and social signals
 - **Configurable Entry Strategies**: Use current price, SMA, or opening price as entry reference
 - **Smart Re-arming**: Automatically places new orders each trading session
@@ -137,21 +141,19 @@ python3 test_connection.py
 # Expected: ✅ Connected! Account Value: $100,000.00
 ```
 
-### Scripts (Startup & Tests)
+### Essential scripts
 
 | Purpose | Command |
 |--------|--------|
 | **Start bot** | `./run.sh` |
 | **Start API server** | `./run_api.sh` |
-| **Background (status/stop)** | `./start_background.sh [start\|stop\|status]` |
+| **Bot + API + system monitor (PM2)** | `pm2 start ecosystem.config.js` |
 | **First-time setup** | `./setup.sh` |
 | **Test Alpaca** | `python3 test_connection.py` |
-| **Test crypto symbols** | `python3 test_crypto_symbols.py` |
-| **Test everything** | `python scripts/test_all.py` |
-| **Test Gemini AI** | `python scripts/test_gemini.py` |
-| **Test order/fills** | `./verify_fills.sh` (API must be running) |
-| **Run pytest** | `./run_tests.sh` or `python run_tests.py` |
+| **Test Gemini AI** | `python scripts/test_gemini.py --api-only` |
+| **Run tests** | `./run_tests.sh` or `pytest` |
 
+**Full list and quick start:** see **[docs/QUICK_START_GUIDE.md](docs/QUICK_START_GUIDE.md)**.  
 Other scripts (momentum scanner, export trades, reset, etc.) are in **`archive/`** — see `archive/README.md`.
 
 ---
@@ -265,10 +267,13 @@ qty = floor(per_symbol_usd / last_price)
 crazy_trade/
 ├── config.yaml              # Your unified config (gitignored)
 ├── config.yaml.example      # Template with ALL settings (committed to git)
-├── secrets.yaml             # Your API keys (gitignored)
-├── secrets.yaml.example     # API key template
+├── secrets.yaml             # All API keys & optional env (gitignored) — single file
+├── secrets.yaml.example     # Template; see docs/SETUP_SECRETS.md
 ├── main.py                  # Entry point
-├── requirements.txt         # Dependencies
+├── system_monitor.py        # CPU/temp monitor → health_status.json (low_power_mode)
+├── ecosystem.config.js      # PM2: bot + API + system monitor
+├── health_status.json      # Written by system_monitor (gitignored)
+├── requirements.txt        # Dependencies
 │
 ├── src/                     # Core bot logic
 │   ├── bot.py              # Main orchestrator
@@ -603,11 +608,16 @@ gemini_signal | symbol=BTC/USD | action=HOLD | confidence=0.71 | strategy=Day Tr
 
 | Indicator | Description |
 |-----------|-------------|
-| **RSI** | Relative Strength Index (14 period) |
+| **RSI** | Relative Strength Index (14 period) — always available; used in low-power mode |
 | **MACD** | Moving Average Convergence Divergence |
 | **Bollinger Bands** | 20-period with 2 std dev |
+| **VWAP** | Volume-weighted average price (above/below) |
+| **OBV** | On-balance volume |
+| **ATR** | Average True Range (14 period, volatility) |
 | **SMA** | Simple Moving Averages (20, 50, 200) |
 | **Volume** | Relative volume vs 20-day average |
+
+When **low_power_mode** is true (from `health_status.json`, written by `system_monitor.py`), the bot runs only RSI to reduce CPU load until recovery.
 
 ---
 
@@ -720,9 +730,10 @@ pytest --cov=src --cov-report=html
 All documentation is in the `/docs` folder:
 
 ### 🚀 Getting Started
+- **[QUICK_START_GUIDE.md](docs/QUICK_START_GUIDE.md)** - Essential scripts and quick start
 - **[QUICKSTART.md](docs/QUICKSTART.md)** - 5-minute setup guide
 - **[CONFIGURATION.md](docs/CONFIGURATION.md)** - Complete config reference
-- **[SETUP_SECRETS.md](docs/SETUP_SECRETS.md)** - API key setup
+- **[SETUP_SECRETS.md](docs/SETUP_SECRETS.md)** - API keys (single file: secrets.yaml)
 
 ### 📖 Guides
 - **[CRYPTO_GUIDE.md](docs/CRYPTO_GUIDE.md)** - 24/7 cryptocurrency trading
@@ -749,21 +760,23 @@ See **[docs/INDEX.md](docs/INDEX.md)** for complete documentation index.
 
 ## 🖥️ PM2 Deployment (Headless Server)
 
-For running on a headless Ubuntu server with PM2:
+Run bot, API, and system monitor with PM2:
 
 ```bash
 # Install PM2 globally
 npm install -g pm2
 
-# Start the bot
+# Start bot + API + system monitor
+mkdir -p logs
 pm2 start ecosystem.config.js
 
-# Or start individually
-pm2 start main.py --interpreter python3 --name crazy-trade-bot
+# Start only bot + monitor (no API)
+pm2 start ecosystem.config.js --only crazy-trade-bot --only crazy-trade-monitor
 
 # Monitor
 pm2 status
 pm2 logs crazy-trade-bot
+pm2 logs crazy-trade-monitor
 pm2 monit
 
 # Auto-start on reboot
@@ -771,27 +784,11 @@ pm2 startup
 pm2 save
 ```
 
-### Using .env for Configuration
+### Secrets: one file (`secrets.yaml`)
 
-```bash
-# Copy template
-cp .env.example .env
-
-# Edit with your keys
-nano .env
-```
-
-```env
-ALPACA_API_KEY=your_key
-ALPACA_SECRET_KEY=your_secret
-GEMINI_API_KEY=your_gemini_key
-
-# Feature toggles
-STOCKS_ENABLED=true
-CRYPTO_ENABLED=true
-GEMINI_ENABLED=true
-LOG_LEVEL=INFO
-```
+All API keys and optional environment overrides live in **`secrets.yaml`** (copy from `secrets.yaml.example`).  
+You do **not** need a `.env` file; the bot loads Alpaca and Gemini from `secrets.yaml`, and can export an optional `env:` section to the environment for momentum providers.  
+See **[docs/SETUP_SECRETS.md](docs/SETUP_SECRETS.md)** for usage.
 
 ---
 

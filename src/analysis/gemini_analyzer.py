@@ -113,7 +113,10 @@ class GeminiAnalyzer:
         
         # Technical indicators calculator
         self.indicators = TechnicalIndicators(config.get('indicators', {}))
-        
+
+        # Runtime override (e.g. low_power_mode from health_status.json)
+        self._indicator_override: Optional[Dict[str, Any]] = None
+
         # State
         self._last_call_time: Optional[datetime] = None
         self._model = None
@@ -202,7 +205,16 @@ class GeminiAnalyzer:
             return False
         
         return False
-    
+
+    def set_indicator_override(self, override: Optional[Dict[str, Any]]) -> None:
+        """
+        Set runtime override for indicator config (e.g. low_power_mode).
+        When set, only RSI runs; VWAP, OBV, ATR (and optionally MACD, Bollinger, SMA, volume) are disabled.
+        Pass None to clear and use config.yaml again.
+        """
+        self._indicator_override = override
+        self.indicators.set_override(override)
+
     async def analyze(
         self,
         stock_symbols: Optional[List[str]] = None,

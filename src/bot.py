@@ -619,6 +619,9 @@ class TradingBot:
         
         while self.running:
             try:
+                # Apply system health override (low_power_mode from system_monitor)
+                self._apply_health_override()
+
                 # Check if we're in acceptable trading window (for stocks)
                 # This excludes first/last minutes if configured
                 in_trading_window = self.market_hours.is_in_trading_window()
@@ -657,6 +660,45 @@ class TradingBot:
                 await asyncio.sleep(10)  # Brief pause on error
         
         logger.info("exiting_main_loop")
+
+    def _apply_health_override(self) -> None:
+        """
+        Read health_status.json (from system_monitor) at start of loop.
+        If low_power_mode is true, override Gemini indicators to only RSI (saves CPU).
+        """
+        path = Path("health_status.json")
+        if not path.exists():
+            if self.gemini_analyzer and getattr(self, "_indicator_override_applied", False):
+                self.gemini_analyzer.set_indicator_override(None)
+                self._indicator_override_applied = False
+            return
+        try:
+            import json
+            with open(path, "r") as f:
+                health = json.load(f)
+        except Exception:
+            return
+        low_power = health.get("low_power_mode", False)
+        if low_power:
+            # Only RSI; disable VWAP, OBV, ATR and heavy indicators to save CPU
+            override = {
+                "vwap": {"enabled": False},
+                "obv": {"enabled": False},
+                "atr": {"enabled": False},
+                "macd": {"enabled": False},
+                "bollinger": {"enabled": False},
+                "sma": {"enabled": False},
+                "volume": {"enabled": False},
+            }
+            if self.gemini_analyzer:
+                self.gemini_analyzer.set_indicator_override(override)
+            self._indicator_override_applied = True
+            logger.debug("low_power_mode_active", indicators_override="RSI only")
+        else:
+            if self.gemini_analyzer and getattr(self, "_indicator_override_applied", False):
+                self.gemini_analyzer.set_indicator_override(None)
+                self._indicator_override_applied = False
+                logger.debug("low_power_mode_cleared", indicators="config.yaml")
 
     async def _process_trading_logic(self, in_rth: bool = True):
         """Process trading logic for all symbols.

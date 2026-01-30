@@ -1,8 +1,10 @@
 # Setting Up API Keys (Secrets)
 
-## 🔐 Security First!
+## 🔐 One file for all secrets: `secrets.yaml`
 
-Your Alpaca API keys should **NEVER** be committed to Git. We keep them in a separate `secrets.yaml` file that is ignored by Git.
+All API keys and optional environment overrides live in **one file**: `secrets.yaml` (gitignored).  
+You do **not** need a `.env` file; the bot loads Alpaca and Gemini from `secrets.yaml`.  
+Optional keys (e.g. for the momentum layer) can go in an `env:` section and are exported to the environment when config loads.
 
 ## 📋 Quick Setup
 
@@ -32,7 +34,23 @@ Open `secrets.yaml` and add your real keys:
 alpaca:
   api_key: "PKxxxxxxxxxxxxxxxxxx"      # Your real API key
   secret_key: "xxxxxxxxxxxxxxxx"       # Your real secret key
+
+# Optional: Gemini AI (for AI analysis layer)
+gemini:
+  api_key: "YOUR_GEMINI_API_KEY"
 ```
+
+**Optional – momentum / other providers:**  
+If you use the momentum layer or any code that reads from the environment (e.g. `ALPHAVANTAGE_API_KEY`, `RAPIDAPI_KEY`), add an `env:` section. Those keys are exported to `os.environ` when config loads:
+
+```yaml
+env:
+  ALPHAVANTAGE_API_KEY: "your_key"
+  RAPIDAPI_KEY: "your_key"
+  LOG_LEVEL: "INFO"
+```
+
+Only add keys you actually use. See `secrets.yaml.example` for the full template.
 
 ### Step 4: Verify It's Ignored by Git
 
@@ -64,30 +82,30 @@ crazy_trade/
 
 ## 🔍 How It Works
 
-The bot loads configuration in two steps:
-
-1. **Load `config.yaml`** - Main settings (watchlist, allocation, etc.)
-2. **Load `secrets.yaml`** - API keys (merged automatically)
+1. **Load `config.yaml`** – Main settings (watchlist, allocation, etc.)
+2. **Load `secrets.yaml`** – Alpaca and Gemini keys are merged into config; any `env:` entries are set in `os.environ` (so momentum/other code using `os.getenv()` can use them).
 
 ```python
-# This automatically loads both files:
+# This loads both files and exports env section:
 config = BotConfig.from_yaml('config.yaml')
 ```
 
+**Why one file?**  
+A single `secrets.yaml` keeps all secrets in one place, avoids duplication with `.env`, and supports optional `env:` for providers that expect environment variables.
+
 ---
 
-## 🔄 Alternative: Environment Variables
+## 🔄 Fallback: Environment variables only
 
-If you prefer environment variables:
+If `secrets.yaml` does **not** exist, the bot will use environment variables for Alpaca only:
 
 ```bash
-# Set environment variables
 export ALPACA_API_KEY="PKxxxxxxxxxx"
 export ALPACA_SECRET_KEY="xxxxxxxxxxxxxx"
-
-# Run the bot (it will use env vars if secrets.yaml doesn't exist)
 ./run.sh
 ```
+
+Prefer using `secrets.yaml` so Gemini and optional `env` keys are in one place.
 
 ---
 
@@ -184,12 +202,11 @@ python3 test_connection.py
 
 ## 📚 Related Files
 
-- `config.yaml` - Your local settings (gitignored, never committed)
-- `config.yaml.example` - Template for config (safe to commit)
-- `secrets.yaml` - Your API keys (gitignored, never committed)
-- `secrets.yaml.example` - Template for secrets (safe to commit)
-- `.gitignore` - Excludes local config and secrets files
-- `SETUP_SECRETS.md` - This guide
+- `secrets.yaml` – **Single file for all secrets** (gitignored): Alpaca, Gemini, optional `env:` section
+- `secrets.yaml.example` – Template with usage comments (safe to commit)
+- `config.yaml` – Your local strategy/config (gitignored)
+- `config.yaml.example` – Config template (safe to commit)
+- `.gitignore` – Excludes config.yaml, secrets.yaml, health_status.json
 
 ---
 

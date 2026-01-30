@@ -34,6 +34,7 @@ pytest-mock>=3.12.0
 # Utilities
 python-dateutil>=2.8.2
 pytz>=2023.3
+psutil>=5.9.0   # System monitor (CPU, temperature)
 
 # API Server
 Flask>=3.0.0
@@ -47,4 +48,5 @@ pytrends>=4.9.0
 
 # Gemini AI Analysis Layer
 google-generativeai>=0.3.0
+pandas_ta>=0.3.14b0   # VWAP, OBV, ATR (optional: omit on very low-power hardware)
 

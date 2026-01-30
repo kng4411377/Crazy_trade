@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Dict, Optional, Literal, Union
 from pathlib import Path
+import os
 import yaml
 from pydantic import BaseModel, Field, field_validator
 
@@ -178,18 +179,26 @@ class BotConfig(BaseModel):
             else:
                 data["crypto_watchlist"] = []
 
-        # Load secrets from secrets.yaml
+        # Load secrets from secrets.yaml (single file for all API keys and optional env)
         secrets_path = path.parent / "secrets.yaml"
         if secrets_path.exists():
             with open(secrets_path, "r") as f:
                 secrets = yaml.safe_load(f)
-            
+            if secrets is None:
+                secrets = {}
+
             # Merge secrets into config data
             if "alpaca" in secrets:
                 data["alpaca"] = secrets["alpaca"]
+
+            # Optional: export env section to os.environ (for momentum/other code using os.getenv)
+            env_section = secrets.get("env")
+            if isinstance(env_section, dict):
+                for k, v in env_section.items():
+                    if k and v is not None and str(v).strip():
+                        os.environ.setdefault(k, str(v).strip())
         else:
             # If no secrets.yaml, check for .env or environment variables
-            import os
             if "ALPACA_API_KEY" in os.environ and "ALPACA_SECRET_KEY" in os.environ:
                 data["alpaca"] = {
                     "api_key": os.environ["ALPACA_API_KEY"],
