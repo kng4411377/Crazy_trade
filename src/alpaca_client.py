@@ -383,8 +383,11 @@ class AlpacaClient:
             entry_pct = self.config.entries.buy_stop_pct_above_last
             entry_price = self.round_to_tick(base_price * (1 + entry_pct / 100))
             
-            # Get time-in-force from config
-            tif = self._get_time_in_force(self.config.entries.tif)
+            # Get time-in-force: crypto only supports GTC or IOC (Alpaca); use GTC for limit orders
+            if is_crypto:
+                tif = TimeInForce.GTC
+            else:
+                tif = self._get_time_in_force(self.config.entries.tif)
             
             if is_crypto:
                 # Crypto: Use limit order (stop orders not supported)
@@ -401,7 +404,7 @@ class AlpacaClient:
                     symbol=symbol,
                     order_type="limit",
                     tif=tif.value,
-                    note="Stop orders not supported for crypto, using limit order"
+                    note="Stop orders not supported for crypto, using limit order (GTC)"
                 )
             else:
                 # Stocks: Use stop orders (standard)
@@ -478,8 +481,11 @@ class AlpacaClient:
             
             trail_percent = self.config.stops.trailing_stop_pct
             
-            # Get time-in-force from config
-            tif = self._get_time_in_force(self.config.stops.tif)
+            # Time-in-force: crypto only supports GTC or IOC (Alpaca); use GTC for limit orders
+            if is_crypto:
+                tif = TimeInForce.GTC
+            else:
+                tif = self._get_time_in_force(self.config.stops.tif)
             
             if is_crypto:
                 # Crypto: Use stop-loss limit order (trailing stops not supported)
@@ -503,7 +509,7 @@ class AlpacaClient:
                     qty=qty,
                     stop_price=stop_price,
                     tif=tif.value,
-                    note="Trailing stops not supported for crypto, using fixed stop-loss limit order"
+                    note="Trailing stops not supported for crypto, using fixed stop-loss limit (GTC)"
                 )
             else:
                 # Stocks: Use trailing stop (standard)

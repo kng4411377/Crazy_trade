@@ -6,9 +6,14 @@ respecting position limits and account constraints.
 """
 
 import asyncio
+import json
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import List, Dict, Optional, Set
 import structlog
+
+# File written by bot for API to read (same dir as api_server.py when cwd is project root)
+WATCHLIST_STATE_FILE = "dynamic_watchlist.json"
 
 from src.momentum.providers.yfinance_provider import YFinanceProvider
 from src.momentum.providers.apewisdom import ApewisdomProvider
@@ -228,8 +233,22 @@ class DynamicWatchlistManager:
             removed=list(removed),
             total=len(new_watchlist)
         )
-        
+        self._persist_watchlist()
         return self.active_watchlist
+
+    def _persist_watchlist(self) -> None:
+        """Write current watchlist to a JSON file so the API can serve GET /watchlist."""
+        try:
+            path = Path.cwd() / WATCHLIST_STATE_FILE
+            data = {
+                "symbols": self.active_watchlist,
+                "updated_at": datetime.utcnow().isoformat() + "Z",
+                "source": "dynamic",
+            }
+            path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+            logger.debug("dynamic_watchlist_persisted", path=str(path), count=len(self.active_watchlist))
+        except Exception as e:
+            logger.warning("dynamic_watchlist_persist_failed", error=str(e))
     
     async def _build_universe(self) -> List[str]:
         """Build the universe of symbols to scan."""

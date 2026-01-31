@@ -53,6 +53,7 @@ config.local.yaml
 config.yaml
 momentum_config.yaml
 health_status.json   # Written by system_monitor.py (low_power_mode)
+dynamic_watchlist.json   # Written by bot (dynamic watchlist for API /watchlist)
 
 # Environment variables (API keys and secrets)
 .env

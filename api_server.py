@@ -5,6 +5,7 @@ Provides read-only access to bot status, performance, and trade data.
 """
 
 import sys
+import json
 from pathlib import Path
 from datetime import datetime, timedelta
 
@@ -54,6 +55,7 @@ def index():
             "/events?limit=N": "Recent N events",
             "/daily": "Daily P&L (default 10 days)",
             "/daily?days=N": "Daily P&L for N days",
+            "/watchlist": "Current dynamic watchlist (stocks from momentum)",
             "/reset": "Instructions to reset paper account (POST)",
             "/admin/close_all": "Instructions to close all positions (POST)"
         }
@@ -416,6 +418,56 @@ def daily():
             })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route('/watchlist')
+def watchlist():
+    """
+    Get current watchlist: dynamic (from momentum) if available, else static (from config).
+    """
+    state_file = Path(__file__).resolve().parent / "dynamic_watchlist.json"
+    try:
+        if state_file.exists():
+            data = json.loads(state_file.read_text(encoding="utf-8"))
+            return jsonify({
+                "timestamp": datetime.utcnow().isoformat(),
+                "symbols": data.get("symbols", []),
+                "updated_at": data.get("updated_at"),
+                "source": data.get("source", "dynamic"),
+                "count": len(data.get("symbols", [])),
+            })
+        # Fallback: static watchlist from config.yaml (no secrets needed)
+        config_path = Path(__file__).resolve().parent / "config.yaml"
+        if config_path.exists():
+            import yaml
+            with open(config_path, "r", encoding="utf-8") as f:
+                config_data = yaml.safe_load(f) or {}
+            static_symbols = [s.upper() for s in config_data.get("watchlist", []) if s]
+            return jsonify({
+                "timestamp": datetime.utcnow().isoformat(),
+                "symbols": static_symbols,
+                "updated_at": None,
+                "source": "static",
+                "count": len(static_symbols),
+                "message": "Dynamic watchlist not written yet; showing config watchlist.",
+            })
+        return jsonify({
+            "timestamp": datetime.utcnow().isoformat(),
+            "symbols": [],
+            "updated_at": None,
+            "source": "none",
+            "count": 0,
+            "message": "No watchlist available (config.yaml not found).",
+        })
+    except Exception as e:
+        return jsonify({
+            "timestamp": datetime.utcnow().isoformat(),
+            "error": str(e),
+            "symbols": [],
+            "updated_at": None,
+            "source": "none",
+            "count": 0,
+        }), 500
 
 
 @app.route('/reset', methods=['POST'])

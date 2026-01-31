@@ -58,6 +58,7 @@ def test_index_endpoint(api_client):
     assert '/health' in data['endpoints']
     assert '/metrics' in data['endpoints']
     assert '/status' in data['endpoints']
+    assert '/watchlist' in data['endpoints']
     assert '/orders' in data['endpoints']
 
 
@@ -347,6 +348,21 @@ def test_orders_response_fields(api_client, api_db):
     assert order['order_id'] in (1001, '1001')
     assert order['symbol'] == 'TSLA'
     assert order['quantity'] == 10
+
+
+def test_watchlist_endpoint(api_client):
+    """Test /watchlist endpoint returns dynamic, static (config), or none."""
+    response = api_client.get('/watchlist')
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert 'timestamp' in data
+    assert 'symbols' in data
+    assert 'updated_at' in data
+    assert 'source' in data
+    assert 'count' in data
+    assert data['count'] == len(data['symbols'])
+    # source: dynamic (file exists), static (config fallback), or none
+    assert data['source'] in ('dynamic', 'static', 'none')
 
 
 def test_invalid_endpoint(api_client):

@@ -371,15 +371,19 @@ class TradingBot:
             return
         
         try:
-            # Get stock symbols from dynamic watchlist or active symbols
+            stock_market_open = self.market_hours.is_in_trading_window()
+            
+            # Get stock symbols only when market is open (no Gemini for stocks off-hours)
             stock_symbols = []
-            if self.gemini_config.get('enable_stocks', True):
+            if stock_market_open and self.gemini_config.get('enable_stocks', True):
                 if self.dynamic_watchlist_manager:
                     stock_symbols = self.dynamic_watchlist_manager.get_watchlist()
                 else:
                     stock_symbols = [s for s in self.active_symbols if '/' not in s]
+            elif self.gemini_config.get('enable_stocks', True):
+                logger.debug("gemini_stocks_skipped_off_hours", note="Market closed, analyzing crypto only")
             
-            # Get crypto symbols
+            # Get crypto symbols (analyze 24/7)
             crypto_symbols = []
             if self.gemini_config.get('enable_crypto', True):
                 crypto_symbols = self.gemini_config.get('crypto_watchlist', [])
@@ -390,9 +394,9 @@ class TradingBot:
             logger.info(
                 "gemini_analysis_running",
                 stocks=len(stock_symbols),
-                crypto=len(crypto_symbols)
+                crypto=len(crypto_symbols),
+                stock_market_open=stock_market_open
             )
-            stock_market_open = self.market_hours.is_in_trading_window()
             # Run analysis (pass stock_market_open so Tavily fallback is skipped for stocks when off-hours)
             signals = await self.gemini_analyzer.analyze(
                 stock_symbols=stock_symbols,

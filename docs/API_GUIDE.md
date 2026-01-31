@@ -315,6 +315,51 @@ curl http://localhost:8080/daily?days=30
 
 ---
 
+### `GET /watchlist`
+Current watchlist: **dynamic** (from momentum) if the bot has written it, else **static** (from config.yaml). Source is `dynamic`, `static`, or `none`.
+
+**Response (when available):**
+```json
+{
+  "timestamp": "2024-10-31T14:30:00.123456",
+  "symbols": ["SOFI", "GME", "UUUU", "KSS", "TSLA"],
+  "updated_at": "2024-10-31T14:25:00.000000Z",
+  "source": "dynamic",
+  "count": 5
+}
+```
+
+**Response (when dynamic file not written yet — fallback to config):**
+```json
+{
+  "timestamp": "2024-10-31T14:30:00.123456",
+  "symbols": ["TSLA", "NVDA", "AAPL"],
+  "updated_at": null,
+  "source": "static",
+  "count": 3,
+  "message": "Dynamic watchlist not written yet; showing config watchlist."
+}
+```
+
+**Response (when config.yaml not found):**
+```json
+{
+  "timestamp": "2024-10-31T14:30:00.123456",
+  "symbols": [],
+  "updated_at": null,
+  "source": "none",
+  "count": 0,
+  "message": "No watchlist available (config.yaml not found)."
+}
+```
+
+**Example:**
+```bash
+curl http://localhost:8080/watchlist
+```
+
+---
+
 ## 🌐 Remote Access
 
 ### From Your Phone/Laptop
