@@ -397,7 +397,7 @@ class SymbolStateMachine:
                     qty=qty,
                     stop_price=None,
                     limit_price=None,
-                    trailing_pct=float(order.trail_percent) if hasattr(order, 'trail_percent') else self.config.stops.trailing_stop_pct,
+                    trailing_pct=float(order.trail_percent) if getattr(order, 'trail_percent', None) is not None else self.config.stops.trailing_stop_pct,
                     parent_id=None,
                 )
                 
