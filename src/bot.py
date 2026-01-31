@@ -639,12 +639,11 @@ class TradingBot:
                 # Apply system health override (low_power_mode from system_monitor)
                 self._apply_health_override()
 
-                # Check if we're in acceptable trading window (for stocks)
-                # This excludes first/last minutes if configured
+                # Stock market window (NYSE hours, etc.). Crypto is 24/7 and never gated by this.
                 in_trading_window = self.market_hours.is_in_trading_window()
                 has_crypto = len(self.config.crypto_watchlist) > 0
                 
-                # Process crypto always (24/7) or stocks during trading window
+                # Run trading logic: crypto 24/7; stocks only when in_trading_window
                 if in_trading_window or has_crypto:
                     await self._process_trading_logic(in_rth=in_trading_window)
                 else:
@@ -720,13 +719,16 @@ class TradingBot:
     async def _process_trading_logic(self, in_rth: bool = True):
         """Process trading logic for all symbols.
         
+        Crypto is always processed (24/7). Stocks are only processed when in_rth is True.
+        
         Args:
-            in_rth: Whether we're in regular trading hours (affects stock trading)
+            in_rth: Whether stock market is in regular trading hours (stocks skipped when False)
         """
         # Check daily drawdown limit (circuit breaker)
-        if not self._check_daily_drawdown_ok():
+        # When tripped we still process existing positions so stop-losses can be placed/updated
+        circuit_breaker_tripped = not self._check_daily_drawdown_ok()
+        if circuit_breaker_tripped:
             logger.warning("daily_drawdown_limit_breached_skipping_new_entries")
-            return
         
         # Get current positions and account value
         positions = self.alpaca.get_positions()
@@ -751,7 +753,7 @@ class TradingBot:
                 continue  # Symbol not in state machines
             
             try:
-                # Skip stocks if market is closed
+                # Crypto trades 24/7; skip only stocks when market is closed
                 is_crypto = self.config.is_crypto_symbol(symbol)
                 if not is_crypto and not in_rth:
                     logger.debug("skipping_stock_outside_rth", symbol=symbol)
@@ -762,10 +764,15 @@ class TradingBot:
                     logger.debug("skipping_new_entry_at_position_limit", symbol=symbol)
                     continue
                 
-                # When Gemini enabled: only place new entries for symbols with BUY signal
-                allow_new_entry = self._gemini_allows_entry(symbol)
-                # When Gemini enabled: SELL signal is highest-priority exit for held positions
-                gemini_says_sell = self._gemini_says_sell(symbol)
+                # When circuit breaker tripped: no new entries, no Gemini sells; still run process for stop-loss placement
+                if circuit_breaker_tripped:
+                    allow_new_entry = False
+                    gemini_says_sell = False
+                else:
+                    # When Gemini enabled: only place new entries for symbols with BUY signal
+                    allow_new_entry = self._gemini_allows_entry(symbol)
+                    # When Gemini enabled: SELL signal is highest-priority exit for held positions
+                    gemini_says_sell = self._gemini_says_sell(symbol)
                 await sm.process(
                     position_values,
                     account_value,
