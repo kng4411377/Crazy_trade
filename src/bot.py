@@ -183,19 +183,22 @@ class TradingBot:
                 with open(config_path, 'r') as f:
                     config = yaml.safe_load(f)
                 
-                # Check for unified config structure (momentum.filter)
-                momentum_enabled = config.get('momentum', {}).get('enabled', False)
-                filter_config = dict(config.get('momentum', {}).get('filter', {}))
-                if filter_config:
-                    # When momentum is enabled, filter is enabled by default; set false to override
-                    filter_config['enabled'] = momentum_enabled and filter_config.get('enabled', True)
+                # Return full momentum section so filter can read factors (news_sentiment vs reddit_attention)
+                momentum_section = config.get('momentum', {})
+                momentum_enabled = momentum_section.get('enabled', False)
+                filter_part = dict(momentum_section.get('filter', {}))
+                if filter_part:
+                    filter_part['enabled'] = momentum_enabled and filter_part.get('enabled', True)
+                    # Merge so filter receives both filter and factors
+                    merged = dict(momentum_section)
+                    merged['filter'] = filter_part
                     logger.info(
                         "momentum_filter_config_loaded",
                         source="config.yaml",
-                        enabled=filter_config.get('enabled', False),
-                        min_score=filter_config.get('min_score', 0),
+                        enabled=filter_part.get('enabled', False),
+                        min_score=filter_part.get('min_score', 0),
                     )
-                    return filter_config
+                    return merged
             
             # Fallback: Try legacy momentum_config.yaml
             legacy_path = Path("momentum_config.yaml")
@@ -203,15 +206,18 @@ class TradingBot:
                 with open(legacy_path, 'r') as f:
                     momentum_config = yaml.safe_load(f)
                 
-                filter_config = momentum_config.get('momentum_layer', {}).get('filter', {})
+                layer = momentum_config.get('momentum_layer', {})
+                filter_config = layer.get('filter', {})
                 if filter_config:
+                    merged = dict(layer)
+                    merged['filter'] = filter_config
                     logger.info(
                         "momentum_filter_config_loaded",
                         source="momentum_config.yaml (legacy)",
                         enabled=filter_config.get('enabled', False),
                         min_score=filter_config.get('min_score', 0),
                     )
-                    return filter_config
+                    return merged
             
             logger.info("momentum_filter_config_not_found")
             return None

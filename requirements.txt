@@ -49,4 +49,5 @@ pytrends>=4.9.0
 # Gemini AI Analysis Layer
 google-generativeai>=0.3.0
 pandas_ta>=0.3.14b0   # VWAP, OBV, ATR (optional: omit on very low-power hardware)
+tavily-python>=0.3.0  # Deep Research fallback (Tavily Search API)
 

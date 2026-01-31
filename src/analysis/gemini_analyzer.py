@@ -90,6 +90,8 @@ class GeminiAnalyzer:
         # Data source toggles
         self.enable_stocks = config.get('enable_stocks', True)
         self.enable_crypto = config.get('enable_crypto', True)
+        self.enable_news_analysis = config.get('enable_news_analysis', True)
+        self.enable_tavily_fallback = config.get('enable_tavily_fallback', False)
         
         # Crypto watchlist (static)
         self.crypto_watchlist = config.get('crypto_watchlist', ['BTC/USD', 'ETH/USD', 'SOL/USD'])
@@ -271,8 +273,17 @@ class GeminiAnalyzer:
                 logger.warning("no_indicators_calculated")
                 return {}
             
+            # Fetch news cluster per symbol when enabled (sync call in executor; avoid timeouts)
+            symbol_news_cluster: Dict[str, str] = {}
+            if self.enable_news_analysis:
+                from src.analysis.news_fetcher import get_news_cluster
+                loop = asyncio.get_event_loop()
+                for sym in all_symbols:
+                    cluster = await loop.run_in_executor(None, lambda s=sym: get_news_cluster(s))
+                    symbol_news_cluster[sym] = cluster
+            
             # Build prompt
-            prompt = self._build_prompt(indicator_results, symbol_strategies)
+            prompt = self._build_prompt(indicator_results, symbol_strategies, symbol_news_cluster)
             
             if self.log_prompts:
                 logger.debug("gemini_prompt", prompt=prompt[:500])
@@ -283,8 +294,32 @@ class GeminiAnalyzer:
             if not response:
                 return {}
             
-            # Parse response
-            signals = self._parse_response(response, symbol_strategies)
+            # Parse response (all signals; we filter by min_confidence after Tavily step)
+            all_signals = self._parse_response(response, symbol_strategies, include_all=True)
+            
+            # Tavily Deep Research fallback: low confidence (0.4–0.6) or no news from yfinance
+            if self.enable_tavily_fallback and all_signals:
+                from src.analysis.tavily_research import get_tavily_context
+                from src.analysis.news_fetcher import NO_NEWS_PLACEHOLDER
+                loop = asyncio.get_event_loop()
+                for sym, sig in list(all_signals.items()):
+                    low_conf = 0.4 <= sig.confidence <= 0.6
+                    no_news = (symbol_news_cluster.get(sym) or "").strip() == NO_NEWS_PLACEHOLDER
+                    if not (low_conf or no_news):
+                        continue
+                    try:
+                        summary = await loop.run_in_executor(None, lambda s=sym: get_tavily_context(s))
+                        if not summary:
+                            continue
+                        logger.info("Tavily Context", symbol=sym, tavily_context=summary[:500])
+                        confirmed = await self._confirm_signal_with_tavily(sym, sig, summary, symbol_strategies.get(sym, "General"))
+                        if confirmed:
+                            all_signals[sym] = confirmed
+                    except Exception as e:
+                        logger.debug("tavily_fallback_error", symbol=sym, error=str(e))
+            
+            # Return only signals at or above min_confidence
+            signals = {s: all_signals[s] for s in all_signals if all_signals[s].confidence >= self.min_confidence}
             
             logger.info(
                 "gemini_analysis_complete",
@@ -312,10 +347,13 @@ class GeminiAnalyzer:
     def _build_prompt(
         self,
         indicators: Dict[str, IndicatorResult],
-        strategies: Dict[str, str]
+        strategies: Dict[str, str],
+        symbol_news_cluster: Optional[Dict[str, str]] = None,
     ) -> str:
         """Build the batched analysis prompt."""
-        
+        if symbol_news_cluster is None:
+            symbol_news_cluster = {}
+
         # Group by strategy
         strategy_groups = {}
         for symbol, result in indicators.items():
@@ -323,10 +361,12 @@ class GeminiAnalyzer:
             if strategy not in strategy_groups:
                 strategy_groups[strategy] = []
             strategy_groups[strategy].append(result)
-        
-        # Build prompt
+
+        # System instruction: use News Context to validate technicals
         prompt_parts = [
             "You are a professional trading analyst. Analyze the following securities and provide trade signals.",
+            "",
+            "Use the News Context to validate the technical indicators. If technicals say BUY but news is overwhelmingly negative (e.g., bankruptcy, fraud, recall), override with HOLD or SELL.",
             "",
             "For each security, provide:",
             "1. ACTION: BUY, SELL, HOLD, or WATCH",
@@ -338,18 +378,20 @@ class GeminiAnalyzer:
             '{"signals": [{"symbol": "AAPL", "action": "BUY", "confidence": 0.75, "reasoning": "...", "risk_level": "medium"}, ...]}',
             "",
         ]
-        
+
         for strategy, results in strategy_groups.items():
             prompt_parts.append(f"=== {strategy.upper()} ===")
             prompt_parts.append(f"Strategy Context: {strategy}")
             prompt_parts.append("")
-            
+
             for result in results:
                 prompt_parts.append(result.to_summary())
+                news_context = symbol_news_cluster.get(result.symbol, "No recent news")
+                prompt_parts.append("News Context: " + news_context)
                 prompt_parts.append("")
-        
+
         prompt_parts.append("Analyze all securities above and return JSON with signals for each.")
-        
+
         return "\n".join(prompt_parts)
     
     async def _call_gemini(self, prompt: str) -> Optional[str]:
@@ -386,13 +428,13 @@ class GeminiAnalyzer:
     def _parse_response(
         self,
         response: str,
-        strategies: Dict[str, str]
+        strategies: Dict[str, str],
+        include_all: bool = False,
     ) -> Dict[str, TradeSignal]:
         """Parse Gemini's JSON response into TradeSignals."""
         signals = {}
         
         try:
-            # Extract JSON from response (might have extra text)
             json_start = response.find('{')
             json_end = response.rfind('}') + 1
             
@@ -421,8 +463,7 @@ class GeminiAnalyzer:
                     take_profit=signal_data.get('take_profit')
                 )
                 
-                # Only include signals above minimum confidence
-                if signal.confidence >= self.min_confidence:
+                if include_all or signal.confidence >= self.min_confidence:
                     signals[symbol] = signal
                     logger.debug(
                         "signal_parsed",
@@ -444,6 +485,56 @@ class GeminiAnalyzer:
             logger.error("response_parse_error", error=str(e))
         
         return signals
+
+    async def _confirm_signal_with_tavily(
+        self,
+        symbol: str,
+        original: TradeSignal,
+        tavily_summary: str,
+        strategy: str,
+    ) -> Optional[TradeSignal]:
+        """
+        Second Gemini call: confirm or override trade decision using Tavily context.
+        Returns updated TradeSignal or None to keep original.
+        """
+        prompt = (
+            "You are a trading analyst. Use the following Tavily research to confirm or override the original trade decision.\n\n"
+            f"Tavily Context: {tavily_summary}\n\n"
+            f"Original signal for {symbol}: {original.action} with confidence {original.confidence:.2f}. "
+            f"Reasoning: {original.reasoning[:150]}\n\n"
+            "If the research strongly contradicts the original (e.g., SEC investigation, fraud, recall), override with HOLD or SELL. "
+            "Otherwise confirm the original action.\n\n"
+            "Respond in JSON only: {\"action\": \"BUY\"|\"SELL\"|\"HOLD\"|\"WATCH\", \"confidence\": 0.0-1.0, \"reasoning\": \"brief reason\"}"
+        )
+        try:
+            response = await self._call_gemini(prompt)
+            if not response:
+                return None
+            json_start = response.find('{')
+            json_end = response.rfind('}') + 1
+            if json_start == -1 or json_end == 0:
+                return None
+            data = json.loads(response[json_start:json_end])
+            action = (data.get("action") or original.action).upper()
+            if action not in ("BUY", "SELL", "HOLD", "WATCH"):
+                action = original.action
+            confidence = float(data.get("confidence", original.confidence))
+            reasoning = data.get("reasoning") or original.reasoning
+            return TradeSignal(
+                symbol=symbol,
+                timestamp=datetime.now(),
+                action=action,
+                confidence=max(0.0, min(1.0, confidence)),
+                strategy=strategy,
+                reasoning=reasoning[:500],
+                risk_level=original.risk_level,
+                entry_price=original.entry_price,
+                stop_loss=original.stop_loss,
+                take_profit=original.take_profit,
+            )
+        except Exception as e:
+            logger.debug("tavily_confirm_parse_error", symbol=symbol, error=str(e))
+            return None
     
     def get_actionable_signals(
         self,

@@ -14,6 +14,7 @@ from src.momentum.providers.yfinance_provider import YFinanceProvider
 from src.momentum.providers.apewisdom import ApewisdomProvider
 from src.momentum.factors.volume_anomaly import VolumeAnomalyFactor
 from src.momentum.factors.reddit_attention import RedditAttentionFactor
+from src.momentum.factors.news_sentiment import NewsSentimentFactor
 
 logger = structlog.get_logger()
 
@@ -37,16 +38,25 @@ class MomentumFilter:
         Initialize momentum filter.
         
         Args:
-            config: momentum_config.yaml['momentum_layer']['filter'] section
+            config: Full momentum section (filter + factors) or legacy filter-only section
         """
-        self.config = config
-        self.enabled = config.get('enabled', False)
-        self.min_score = config.get('min_score', 0.5)
-        self.volume_weight = config.get('volume_weight', 0.7)
-        self.reddit_weight = config.get('reddit_weight', 0.3)
-        self.cache_duration = config.get('cache_duration', 3600)  # 1 hour
-        self.require_volume = config.get('require_volume', True)
-        self.require_reddit = config.get('require_reddit', False)
+        filter_cfg = config.get('filter', config)
+        factors_cfg = config.get('factors', {})
+        self.config = filter_cfg
+        self.enabled = filter_cfg.get('enabled', False)
+        self.min_score = filter_cfg.get('min_score', 0.5)
+        self.volume_weight = filter_cfg.get('volume_weight', 0.7)
+        self.reddit_weight = filter_cfg.get('reddit_weight', 0.3)
+        self.news_weight = filter_cfg.get('news_weight', 0.3)
+        self.cache_duration = filter_cfg.get('cache_duration', 3600)  # 1 hour
+        self.require_volume = filter_cfg.get('require_volume', True)
+        self.require_reddit = filter_cfg.get('require_reddit', False)
+        self.require_news = filter_cfg.get('require_news', False)
+        self.use_news_sentiment = factors_cfg.get('news_sentiment', {}).get('enabled', False)
+        self.use_reddit_attention = factors_cfg.get('reddit_attention', {}).get('enabled', False)
+        if not self.use_news_sentiment and not self.use_reddit_attention:
+            self.use_news_sentiment = True  # default to news when both absent (replaced reddit)
+        self._factors_cfg = factors_cfg
         
         # Providers
         self.yf_provider: Optional[YFinanceProvider] = None
@@ -55,6 +65,7 @@ class MomentumFilter:
         # Factors
         self.volume_factor: Optional[VolumeAnomalyFactor] = None
         self.reddit_factor: Optional[RedditAttentionFactor] = None
+        self.news_factor: Optional[NewsSentimentFactor] = None
         
         # Cache
         self._score_cache: Dict[str, Dict] = {}
@@ -66,8 +77,12 @@ class MomentumFilter:
             min_score=self.min_score,
             volume_weight=self.volume_weight,
             reddit_weight=self.reddit_weight,
+            news_weight=self.news_weight,
+            use_news_sentiment=self.use_news_sentiment,
+            use_reddit_attention=self.use_reddit_attention,
             require_volume=self.require_volume,
-            require_reddit=self.require_reddit
+            require_reddit=self.require_reddit,
+            require_news=self.require_news
         )
     
     async def initialize(self) -> bool:
@@ -92,9 +107,9 @@ class MomentumFilter:
                 logger.error("momentum_filter_init_failed", reason="yfinance_unavailable")
                 return False
             
-            # Initialize Apewisdom (optional)
-            self.apewisdom_provider = ApewisdomProvider({})
-            await self.apewisdom_provider.initialize()
+            if self.use_reddit_attention:
+                self.apewisdom_provider = ApewisdomProvider({})
+                await self.apewisdom_provider.initialize()
             
             # Create factors
             self.volume_factor = VolumeAnomalyFactor(
@@ -102,19 +117,26 @@ class MomentumFilter:
                 {'weight': self.volume_weight}
             )
             
-            self.reddit_factor = RedditAttentionFactor(
-                [self.apewisdom_provider],
-                {
-                    'weight': self.reddit_weight,
-                    'min_mentions': 10,
-                    'min_positivity': 0.55
-                }
-            )
+            if self.use_news_sentiment:
+                news_cfg = dict(self._factors_cfg.get('news_sentiment', {'weight': self.news_weight, 'top_headlines': 3}))
+                news_cfg.setdefault('weight', self.news_weight)
+                news_cfg.setdefault('enabled', True)
+                self.news_factor = NewsSentimentFactor([], news_cfg)
+            if self.use_reddit_attention and self.apewisdom_provider:
+                self.reddit_factor = RedditAttentionFactor(
+                    [self.apewisdom_provider],
+                    {
+                        'weight': self.reddit_weight,
+                        'min_mentions': 10,
+                        'min_positivity': 0.55
+                    }
+                )
             
             logger.info(
                 "momentum_filter_initialized",
                 yfinance=self.yf_provider.is_available(),
-                apewisdom=self.apewisdom_provider.is_available()
+                apewisdom=self.apewisdom_provider.is_available() if self.apewisdom_provider else False,
+                news_sentiment=self.use_news_sentiment
             )
             
             return True
@@ -209,14 +231,19 @@ class MomentumFilter:
         # Calculate fresh scores
         volume_score = None
         reddit_score = None
+        news_score = None
         
         # Get volume score (required if require_volume=True)
         if self.volume_factor:
             volume_score = await self.volume_factor.calculate_score(symbol)
         
         # Get reddit score (required if require_reddit=True)
-        if self.reddit_factor and self.apewisdom_provider.is_available():
+        if self.reddit_factor and self.apewisdom_provider and self.apewisdom_provider.is_available():
             reddit_score = await self.reddit_factor.calculate_score(symbol)
+        
+        # Get news score (when news_sentiment factor enabled)
+        if self.news_factor:
+            news_score = await self.news_factor.calculate_score(symbol)
         
         # Check requirements
         if self.require_volume and not volume_score:
@@ -224,6 +251,7 @@ class MomentumFilter:
                 'composite': 0.0,
                 'volume_score': 0.0,
                 'reddit_score': 0.0,
+                'news_score': 0.0,
                 'passes_filter': False,
                 'filter_reason': 'no_volume_data',
                 'timestamp': datetime.now()
@@ -231,11 +259,12 @@ class MomentumFilter:
             self._score_cache[symbol] = result
             return result
         
-        if self.require_reddit and not reddit_score:
+        if self.require_reddit and not reddit_score and self.use_reddit_attention:
             result = {
                 'composite': 0.0,
                 'volume_score': volume_score.score if volume_score else 0.0,
                 'reddit_score': 0.0,
+                'news_score': 0.0,
                 'passes_filter': False,
                 'filter_reason': 'no_reddit_data',
                 'timestamp': datetime.now()
@@ -243,12 +272,24 @@ class MomentumFilter:
             self._score_cache[symbol] = result
             return result
         
-        # Calculate composite score
+        if self.require_news and not news_score and self.use_news_sentiment:
+            result = {
+                'composite': 0.0,
+                'volume_score': volume_score.score if volume_score else 0.0,
+                'reddit_score': 0.0,
+                'news_score': 0.0,
+                'passes_filter': False,
+                'filter_reason': 'no_news_data',
+                'timestamp': datetime.now()
+            }
+            self._score_cache[symbol] = result
+            return result
+        
+        # Calculate composite score (volume, reddit, or news)
         v_score = volume_score.score if volume_score else 0.0
         r_score = reddit_score.score if reddit_score else 0.0
-        
-        # Use MAX aggregation (like the scanner)
-        composite = max(v_score, r_score) if (volume_score or reddit_score) else 0.0
+        n_score = news_score.score if news_score else 0.0
+        composite = max(v_score, r_score, n_score) if (volume_score or reddit_score or news_score) else 0.0
         
         # Check threshold
         passes = composite >= self.min_score
@@ -257,11 +298,13 @@ class MomentumFilter:
             'composite': composite,
             'volume_score': v_score,
             'reddit_score': r_score,
+            'news_score': n_score,
             'passes_filter': passes,
             'filter_reason': 'below_threshold' if not passes else 'passed',
             'timestamp': datetime.now(),
             'volume_data': volume_score.metadata if volume_score else None,
-            'reddit_data': reddit_score.metadata if reddit_score else None
+            'reddit_data': reddit_score.metadata if reddit_score else None,
+            'news_data': news_score.metadata if news_score else None
         }
         
         # Cache result
@@ -277,12 +320,15 @@ class MomentumFilter:
             'cache_size': len(self._score_cache),
             'yfinance_available': self.yf_provider.is_available() if self.yf_provider else False,
             'apewisdom_available': self.apewisdom_provider.is_available() if self.apewisdom_provider else False,
+            'news_sentiment': self.use_news_sentiment,
             'config': {
                 'min_score': self.min_score,
                 'volume_weight': self.volume_weight,
                 'reddit_weight': self.reddit_weight,
+                'news_weight': self.news_weight,
                 'require_volume': self.require_volume,
-                'require_reddit': self.require_reddit
+                'require_reddit': self.require_reddit,
+                'require_news': self.require_news
             }
         }
     
@@ -292,6 +338,6 @@ class MomentumFilter:
             await self.yf_provider.close()
         if self.apewisdom_provider:
             await self.apewisdom_provider.close()
-        
+        self.news_factor = None
         logger.info("momentum_filter_closed")
 
