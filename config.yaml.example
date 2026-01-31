@@ -340,7 +340,8 @@ gemini:
   enable_stocks: true              # Analyze stocks from dynamic watchlist
   enable_crypto: true              # Analyze crypto from static list
   enable_news_analysis: true      # Include recent news headlines (yfinance) in prompt
-  enable_tavily_fallback: true   # Deep Research: Tavily when confidence 0.4–0.6 or no yfinance news
+  enable_tavily_fallback: true   # Fallback only when Yahoo (yfinance) has no news; stocks skipped off-hours; max 1 call/min (tavily_interval_seconds)
+  # tavily_interval_seconds: 60  # Optional: min seconds between Tavily calls (default 60)
   
   # Crypto watchlist for Gemini (same as crypto.watchlist — use anchor above)
   crypto_watchlist: *crypto_watchlist

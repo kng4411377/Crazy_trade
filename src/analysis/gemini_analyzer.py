@@ -92,6 +92,8 @@ class GeminiAnalyzer:
         self.enable_crypto = config.get('enable_crypto', True)
         self.enable_news_analysis = config.get('enable_news_analysis', True)
         self.enable_tavily_fallback = config.get('enable_tavily_fallback', False)
+        self._last_tavily_call_ts: Optional[datetime] = None
+        self.tavily_interval_seconds = config.get('tavily_interval_seconds', 60)
         
         # Crypto watchlist (static)
         self.crypto_watchlist = config.get('crypto_watchlist', ['BTC/USD', 'ETH/USD', 'SOL/USD'])
@@ -220,7 +222,8 @@ class GeminiAnalyzer:
     async def analyze(
         self,
         stock_symbols: Optional[List[str]] = None,
-        crypto_symbols: Optional[List[str]] = None
+        crypto_symbols: Optional[List[str]] = None,
+        stock_market_open: bool = True,
     ) -> Dict[str, TradeSignal]:
         """
         Analyze symbols and return trade signals.
@@ -230,6 +233,7 @@ class GeminiAnalyzer:
         Args:
             stock_symbols: List of stock symbols (uses dynamic watchlist)
             crypto_symbols: List of crypto symbols (uses static list if None)
+            stock_market_open: If False, Tavily fallback is skipped for stocks (only cryptos).
             
         Returns:
             Dict mapping symbol to TradeSignal
@@ -297,18 +301,30 @@ class GeminiAnalyzer:
             # Parse response (all signals; we filter by min_confidence after Tavily step)
             all_signals = self._parse_response(response, symbol_strategies, include_all=True)
             
-            # Tavily Deep Research fallback: low confidence (0.4–0.6) or no news from yfinance
+            # Tavily fallback only when Yahoo (yfinance) has NO news for that symbol.
+            # - Stocks: only when stock market is open (no Tavily for stocks off-hours).
+            # - Rate limit: at most 1 Tavily call per tavily_interval_seconds (default 60).
             if self.enable_tavily_fallback and all_signals:
                 from src.analysis.tavily_research import get_tavily_context
                 from src.analysis.news_fetcher import NO_NEWS_PLACEHOLDER
                 loop = asyncio.get_event_loop()
+                now = datetime.now()
                 for sym, sig in list(all_signals.items()):
-                    low_conf = 0.4 <= sig.confidence <= 0.6
                     no_news = (symbol_news_cluster.get(sym) or "").strip() == NO_NEWS_PLACEHOLDER
-                    if not (low_conf or no_news):
+                    if not no_news:
                         continue
+                    is_crypto = "/" in sym
+                    if not is_crypto and not stock_market_open:
+                        logger.debug("tavily_skipped_stock_off_hours", symbol=sym)
+                        continue
+                    if self._last_tavily_call_ts is not None:
+                        elapsed = (now - self._last_tavily_call_ts).total_seconds()
+                        if elapsed < self.tavily_interval_seconds:
+                            logger.debug("tavily_rate_limited", symbol=sym, elapsed=elapsed, interval=self.tavily_interval_seconds)
+                            continue
                     try:
                         summary = await loop.run_in_executor(None, lambda s=sym: get_tavily_context(s))
+                        self._last_tavily_call_ts = datetime.now()
                         if not summary:
                             continue
                         logger.info("Tavily Context", symbol=sym, tavily_context=summary[:500])

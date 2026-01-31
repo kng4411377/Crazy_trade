@@ -392,11 +392,12 @@ class TradingBot:
                 stocks=len(stock_symbols),
                 crypto=len(crypto_symbols)
             )
-            
-            # Run analysis
+            stock_market_open = self.market_hours.is_in_trading_window()
+            # Run analysis (pass stock_market_open so Tavily fallback is skipped for stocks when off-hours)
             signals = await self.gemini_analyzer.analyze(
                 stock_symbols=stock_symbols,
-                crypto_symbols=crypto_symbols
+                crypto_symbols=crypto_symbols,
+                stock_market_open=stock_market_open,
             )
             
             self.last_gemini_analysis = datetime.now()
