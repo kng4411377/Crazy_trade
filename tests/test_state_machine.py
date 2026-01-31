@@ -1,6 +1,9 @@
 """Tests for symbol state machine."""
 
 import pytest
+
+pytestmark = pytest.mark.unit
+
 from datetime import datetime, timedelta
 from unittest.mock import Mock, AsyncMock, patch
 

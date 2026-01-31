@@ -1,6 +1,9 @@
 """Tests for market hours checking."""
 
 import pytest
+
+pytestmark = pytest.mark.unit
+
 from datetime import datetime, time
 import pytz
 

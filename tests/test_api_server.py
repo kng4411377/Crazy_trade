@@ -1,6 +1,9 @@
 """Tests for API server endpoints."""
 
 import pytest
+
+pytestmark = pytest.mark.unit
+
 import json
 from datetime import datetime, timedelta
 
@@ -53,6 +56,7 @@ def test_index_endpoint(api_client):
     assert data['name'] == 'Crazy Trade Bot API'
     assert 'endpoints' in data
     assert '/health' in data['endpoints']
+    assert '/metrics' in data['endpoints']
     assert '/status' in data['endpoints']
     assert '/orders' in data['endpoints']
 
@@ -258,6 +262,24 @@ def test_performance_endpoint_no_trades(api_client):
     assert 'message' in data or 'overall' in data
 
 
+def test_metrics_endpoint(api_client, api_db):
+    """Test /metrics endpoint returns detailed performance metrics."""
+    response = api_client.get('/metrics')
+    assert response.status_code == 200
+    
+    data = json.loads(response.data)
+    assert 'timestamp' in data
+    assert 'statistics' in data
+    assert 'per_symbol_performance' in data
+    assert 'activity' in data
+    assert data['activity']['total_trades'] >= 0
+    assert 'recent_fills_24h' in data['activity']
+    assert 'recent_orders_24h' in data['activity']
+    assert 'risk_metrics' in data
+    assert 'win_rate' in data['risk_metrics']
+    assert 'profit_factor' in data['risk_metrics']
+
+
 def test_daily_endpoint(api_client, api_db):
     """Test /daily endpoint."""
     response = api_client.get('/daily?days=7')
@@ -321,7 +343,8 @@ def test_orders_response_fields(api_client, api_db):
     for field in required_fields:
         assert field in order, f"Missing required field: {field}"
     
-    assert order['order_id'] == 1001
+    # order_id is stored as string in DB (UUID support)
+    assert order['order_id'] in (1001, '1001')
     assert order['symbol'] == 'TSLA'
     assert order['quantity'] == 10
 

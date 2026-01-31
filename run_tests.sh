@@ -47,18 +47,20 @@ Usage: ./run_tests.sh [OPTIONS]
 Run tests for the Crazy Trade Bot project.
 
 OPTIONS:
-    all             Run all tests (default)
+    all             Run all tests (default): pytest + connection test
     unit            Run only unit tests
     integration     Run only integration tests
     api             Run only API tests
+    connection      Run connection test only (Alpaca, optional Tavily/Gemini)
     coverage        Run all tests with coverage report
     file <name>     Run specific test file (e.g., test_database.py)
     fast            Run tests without verbosity
     -h, --help      Show this help message
 
 EXAMPLES:
-    ./run_tests.sh                    # Run all tests
+    ./run_tests.sh                    # Run all tests (pytest + connection)
     ./run_tests.sh unit               # Run unit tests only
+    ./run_tests.sh connection        # Run connection test only
     ./run_tests.sh coverage           # Run with coverage report
     ./run_tests.sh file test_api_server.py
     ./run_tests.sh fast               # Run tests quickly
@@ -73,11 +75,34 @@ if ! command -v pytest &> /dev/null; then
     exit 1
 fi
 
+# Run connection test (standalone script, requires API keys)
+run_connection_test() {
+    print_header "Running Connection Test (Alpaca, optional Tavily/Gemini)"
+    if [ ! -f "test_connection.py" ]; then
+        print_error "test_connection.py not found"
+        return 1
+    fi
+    python3 test_connection.py
+    return $?
+}
+
 # Parse command line arguments
 case "${1:-all}" in
     all)
-        print_header "Running All Tests"
+        print_header "Running All Tests (pytest)"
         pytest tests/ -v
+        PYTEST_EXIT=$?
+        if [ $PYTEST_EXIT -ne 0 ]; then
+            print_error "Pytest failed!"
+            exit 1
+        fi
+        run_connection_test
+        exit $?
+        ;;
+    
+    connection)
+        run_connection_test
+        exit $?
         ;;
     
     unit)

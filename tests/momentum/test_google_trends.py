@@ -89,7 +89,7 @@ async def test_retail_attention_factor():
     
     for symbol in test_symbols:
         print(f"\n   {symbol}:")
-        score = await factor.calculate(symbol)
+        score = await factor.calculate_score(symbol)
         
         if score:
             scores.append((symbol, score))
@@ -156,8 +156,8 @@ async def test_combined():
         print(f"{symbol}:")
         
         # Get both factor scores
-        volume_score = await volume_factor.calculate(symbol)
-        retail_score = await retail_factor.calculate(symbol)
+        volume_score = await volume_factor.calculate_score(symbol)
+        retail_score = await retail_factor.calculate_score(symbol)
         
         if volume_score and retail_score:
             # Calculate weighted composite

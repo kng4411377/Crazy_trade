@@ -332,7 +332,7 @@ gemini:
   enabled: false                   # Master toggle for Gemini analysis
   
   # API Settings
-  model: "gemini-1.5-flash"        # Model to use (flash is faster/cheaper)
+  model: "gemini-2.0-flash"       # Model to use; if 404 try "gemini-1.5-flash" or "gemini-pro"
   call_interval_seconds: 60        # Minimum seconds between API calls
   timeout_seconds: 30              # API call timeout
   

@@ -2,6 +2,8 @@
 
 import pytest
 
+pytestmark = pytest.mark.unit
+
 from src.config import BotConfig
 from src.sizing import PositionSizer
 

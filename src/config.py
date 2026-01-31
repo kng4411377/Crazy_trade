@@ -6,7 +6,7 @@ from typing import Dict, Optional, Literal, Union
 from pathlib import Path
 import os
 import yaml
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class AlpacaConfig(BaseModel):
@@ -142,6 +142,13 @@ class BotConfig(BaseModel):
                 symbol = f"{symbol}/USD"
             normalized.append(symbol)
         return normalized
+
+    @model_validator(mode="after")
+    def require_at_least_one_symbol(self):
+        """Require at least one symbol in watchlist or crypto_watchlist."""
+        if not (self.watchlist or self.crypto_watchlist):
+            raise ValueError("at least one symbol required in watchlist or crypto_watchlist")
+        return self
     
     def get_all_symbols(self) -> list[str]:
         """Get combined list of all symbols (stocks + crypto)."""

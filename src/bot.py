@@ -307,7 +307,7 @@ class TradingBot:
                 logger.info(
                     "gemini_config_loaded",
                     enabled=gemini_config.get('enabled', False),
-                    model=gemini_config.get('model', 'gemini-1.5-flash'),
+                    model=gemini_config.get('model', 'gemini-2.0-flash'),
                     enable_stocks=gemini_config.get('enable_stocks', True),
                     enable_crypto=gemini_config.get('enable_crypto', True),
                 )

@@ -1,6 +1,9 @@
 """Tests for database operations."""
 
 import pytest
+
+pytestmark = pytest.mark.unit
+
 from datetime import datetime
 
 from src.database import DatabaseManager, SymbolState, OrderRecord, FillRecord, EventRecord
@@ -24,15 +27,14 @@ def test_create_tables(db):
 def test_upsert_symbol_state(db):
     """Test inserting and updating symbol state."""
     with db.get_session() as session:
-        # Insert new state
+        # Insert new state (last_parent_id/last_trail_id stored as string for UUID support)
         state = db.upsert_symbol_state(session, "TSLA", last_parent_id=1001)
         assert state.symbol == "TSLA"
-        assert state.last_parent_id == 1001
-        
+        assert state.last_parent_id in (1001, "1001")
         # Update existing state
         state = db.upsert_symbol_state(session, "TSLA", last_trail_id=1002)
-        assert state.last_parent_id == 1001  # Preserved
-        assert state.last_trail_id == 1002  # Updated
+        assert state.last_parent_id in (1001, "1001")  # Preserved
+        assert state.last_trail_id in (1002, "1002")  # Updated
 
 
 def test_get_symbol_state(db):
@@ -45,11 +47,11 @@ def test_get_symbol_state(db):
         # Create state
         db.upsert_symbol_state(session, "NVDA", last_parent_id=2001)
         
-        # Retrieve state
+        # Retrieve state (last_parent_id stored as string for UUID support)
         state = db.get_symbol_state(session, "NVDA")
         assert state is not None
         assert state.symbol == "NVDA"
-        assert state.last_parent_id == 2001
+        assert state.last_parent_id in (2001, "2001")
 
 
 def test_add_order(db):
@@ -67,7 +69,7 @@ def test_add_order(db):
         )
         
         assert order.id is not None
-        assert order.order_id == 1001
+        assert order.order_id in (1001, "1001")  # Stored as string for UUID support
         assert order.symbol == "TSLA"
         assert order.side == "BUY"
         assert order.qty == 10

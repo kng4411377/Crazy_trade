@@ -92,16 +92,13 @@ def metrics():
     - Risk metrics
     """
     try:
-        # Get performance metrics
-        stats = tracker.get_statistics()
-        per_symbol = tracker.get_per_symbol_performance()
-        
-        # Calculate additional metrics
         with db.get_session() as session:
+            # Get performance metrics (require session)
+            stats = tracker.calculate_trade_statistics(session)
+            per_symbol = tracker.get_performance_by_symbol(session)
             # Total trades
             total_fills = session.query(FillRecord).count()
             total_orders = session.query(OrderRecord).count()
-            
             # Recent activity (last 24 hours)
             yesterday = datetime.utcnow() - timedelta(days=1)
             recent_fills = session.query(FillRecord).filter(
@@ -110,12 +107,10 @@ def metrics():
             recent_orders = session.query(OrderRecord).filter(
                 OrderRecord.created_at >= yesterday
             ).count()
-            
             # Symbols in cooldown
             cooldown_symbols = session.query(SymbolState).filter(
                 SymbolState.cooldown_until_ts > datetime.utcnow()
             ).count()
-            
             # Active positions (approximate from recent buy fills without sell fills)
             buy_fills = session.query(FillRecord).filter(
                 FillRecord.side == "BUY"
@@ -124,7 +119,6 @@ def metrics():
                 FillRecord.side == "SELL"
             ).count()
             estimated_positions = max(0, buy_fills - sell_fills)
-        
         return jsonify({
             "timestamp": datetime.utcnow().isoformat(),
             "statistics": stats,
@@ -138,9 +132,9 @@ def metrics():
                 "estimated_open_positions": estimated_positions
             },
             "risk_metrics": {
-                "win_rate": stats.get("win_rate_pct", 0),
+                "win_rate": stats.get("win_rate", 0),
                 "profit_factor": stats.get("profit_factor", 0),
-                "max_drawdown_pct": stats.get("max_drawdown_pct", 0),
+                "max_drawdown_pct": stats.get("max_drawdown", 0),
                 "sharpe_ratio": stats.get("sharpe_ratio", 0),
                 "avg_win": stats.get("avg_win", 0),
                 "avg_loss": stats.get("avg_loss", 0),

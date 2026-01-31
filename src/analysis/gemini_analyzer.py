@@ -83,7 +83,7 @@ class GeminiAnalyzer:
         self.enabled = config.get('enabled', False)
         
         # API settings
-        self.model_name = config.get('model', 'gemini-1.5-flash')
+        self.model_name = config.get('model', 'gemini-2.0-flash')
         self.call_interval = config.get('call_interval_seconds', 60)
         self.timeout = config.get('timeout_seconds', 30)
         

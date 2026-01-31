@@ -1,6 +1,9 @@
 """Tests for configuration management."""
 
 import pytest
+
+pytestmark = pytest.mark.unit
+
 from pathlib import Path
 import tempfile
 import yaml

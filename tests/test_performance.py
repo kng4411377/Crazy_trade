@@ -1,6 +1,9 @@
 """Tests for performance tracking."""
 
 import pytest
+
+pytestmark = pytest.mark.unit
+
 from datetime import datetime, timedelta
 
 from src.database import DatabaseManager
