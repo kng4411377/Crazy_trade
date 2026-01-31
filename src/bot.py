@@ -556,11 +556,10 @@ class TradingBot:
                 bot_config=self.config
             )
             
-            # Get current positions for context
-            positions = await self.alpaca.get_positions()
-            current_positions = {p.symbol: float(p.market_value) for p in positions}
-            account = await self.alpaca.get_account()
-            account_value = float(account.equity)
+            # Get current positions for context (sync APIs)
+            positions = self.alpaca.get_positions()
+            current_positions = {sym: pos["market_value"] for sym, pos in positions.items()}
+            account_value = self.alpaca.get_account_value() or 0.0
             
             # Initialize (this runs first scan if scan_at_start=True)
             success = await self.dynamic_watchlist_manager.initialize()
