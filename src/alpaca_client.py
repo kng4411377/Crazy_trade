@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Optional, Dict, Callable, List
+from typing import Optional, Dict, Callable, List, Union
 from decimal import Decimal, ROUND_DOWN
 import asyncio
 import structlog
@@ -460,17 +460,23 @@ class AlpacaClient:
             return None, None
 
     async def place_trailing_stop(
-        self, symbol: str, qty: int, current_price: float
+        self,
+        symbol: str,
+        qty: Union[int, float],
+        current_price: float,
+        entry_price_from_fills: Optional[float] = None,
     ) -> Optional[AlpacaOrder]:
         """
         Place standalone trailing stop (for existing position).
         
-        For crypto: Uses stop-loss limit order instead (trailing stops not supported)
+        For crypto: Uses stop-loss limit order. Prefer entry_price_from_fills (local
+        executed price) for stop calculation when provided, so stop is based on cost basis.
         
         Args:
             symbol: Stock or crypto symbol
             qty: Position quantity
-            current_price: Current price (for reference)
+            current_price: Current market price (fallback for stop when entry_price_from_fills not set)
+            entry_price_from_fills: Optional; for crypto, use this (local fill cost) for stop price.
             
         Returns:
             AlpacaOrder wrapper or None on error
@@ -489,15 +495,23 @@ class AlpacaClient:
             
             if is_crypto:
                 # Crypto: Use stop-loss limit order (trailing stops not supported)
-                # Calculate stop price from current price
-                stop_price = self.round_to_tick(current_price * (1 - trail_percent / 100))
-                
-                # Use limit order slightly below stop price for better execution
+                # Use actual position qty from broker (rounded down) to avoid "insufficient balance"
+                positions = self.get_positions()
+                if symbol in positions:
+                    pos_qty = positions[symbol]["quantity"]
+                    qty_to_use = float(Decimal(str(pos_qty)).quantize(Decimal("0.0001"), rounding=ROUND_DOWN))
+                else:
+                    qty_to_use = float(qty) if isinstance(qty, (int, float)) else qty
+                if qty_to_use <= 0:
+                    logger.warning("crypto_stop_skip_zero_qty", symbol=symbol, position_qty=positions.get(symbol, {}).get("quantity", 0))
+                    return None
+                # Prefer local executed price for stop so protection is based on cost basis
+                price_for_stop = entry_price_from_fills if entry_price_from_fills is not None and entry_price_from_fills > 0 else current_price
+                stop_price = self.round_to_tick(price_for_stop * (1 - trail_percent / 100))
                 limit_price = self.round_to_tick(stop_price * 0.99)  # 1% below stop
-                
                 order_request = LimitOrderRequest(
                     symbol=symbol,
-                    qty=qty,
+                    qty=qty_to_use,
                     side=OrderSide.SELL,
                     time_in_force=tif,
                     limit_price=stop_price  # Sell at stop price
@@ -506,8 +520,10 @@ class AlpacaClient:
                 logger.info(
                     "crypto_stop_loss_placed",
                     symbol=symbol,
-                    qty=qty,
+                    qty=qty_to_use,
                     stop_price=stop_price,
+                    entry_price_used=price_for_stop,
+                    source="local_fills" if entry_price_from_fills is not None and entry_price_from_fills > 0 else "broker_price",
                     tif=tif.value,
                     note="Trailing stops not supported for crypto, using fixed stop-loss limit (GTC)"
                 )
@@ -531,7 +547,8 @@ class AlpacaClient:
             logger.info(
                 "exit_order_placed",
                 symbol=symbol,
-                order_id=str(order.id),                qty=qty,
+                order_id=str(order.id),
+                qty=qty_to_use if is_crypto else qty,
                 trail_percent=trail_percent if not is_crypto else None,
                 stop_price=stop_price if is_crypto else None,
                 order_type=order.type.value,

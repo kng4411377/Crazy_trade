@@ -46,13 +46,15 @@ def index():
             "/metrics": "Detailed performance metrics and statistics (NEW v1.2.0)",
             "/status": "Bot status and symbol states",
             "/performance": "Performance metrics and P&L",
-            "/fills": "Recent fills (default 20)",
-            "/fills?limit=N": "Recent N fills",
+            "/fills": "Recent fills (default 20, paginated)",
+            "/fills?limit=N&offset=M": "Fills with limit N and offset M (pagination)",
+            "/fills?limit=N&page=P": "Fills page P (page size N)",
             "/orders": "Active orders (default)",
             "/orders?status=all&limit=N": "All orders with limit",
             "/orders?status=Filled&limit=N": "Orders by status with limit",
-            "/events": "Recent events (default 20)",
-            "/events?limit=N": "Recent N events",
+            "/events": "Recent events (default 20, paginated)",
+            "/events?limit=N&offset=M": "Events with limit N and offset M (pagination)",
+            "/events?limit=N&page=P": "Events page P (page size N)",
             "/daily": "Daily P&L (default 10 days)",
             "/daily?days=N": "Daily P&L for N days",
             "/watchlist": "Current dynamic watchlist (stocks from momentum)",
@@ -284,19 +286,27 @@ def performance():
 
 @app.route('/fills')
 def fills():
-    """Get recent fills."""
+    """Get recent fills with pagination (limit, offset or page)."""
     try:
         limit = request.args.get('limit', default=20, type=int)
-        limit = min(limit, 200)  # Cap at 200
-        
+        limit = min(max(1, limit), 200)  # Between 1 and 200
+        offset = request.args.get('offset', default=None, type=int)
+        page = request.args.get('page', default=None, type=int)
+        if page is not None and page >= 1:
+            offset = (page - 1) * limit
+        elif offset is None:
+            offset = 0
+        offset = max(0, offset)
+
         with db.get_session() as session:
+            total = session.query(FillRecord).count()
             recent_fills = (
                 session.query(FillRecord)
                 .order_by(FillRecord.ts.desc())
                 .limit(limit)
+                .offset(offset)
                 .all()
             )
-            
             fills_data = [{
                 "timestamp": format_timestamp(fill.ts),
                 "symbol": fill.symbol,
@@ -306,11 +316,17 @@ def fills():
                 "order_id": fill.order_id,
                 "exec_id": fill.exec_id
             } for fill in recent_fills]
-            
+
             return jsonify({
                 "timestamp": datetime.utcnow().isoformat(),
-                "count": len(fills_data),
-                "fills": fills_data
+                "fills": fills_data,
+                "pagination": {
+                    "limit": limit,
+                    "offset": offset,
+                    "count": len(fills_data),
+                    "total": total,
+                    "total_pages": (total + limit - 1) // limit if limit else 0,
+                }
             })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -371,30 +387,44 @@ def orders():
 
 @app.route('/events')
 def events():
-    """Get recent events."""
+    """Get recent events (paper trail) with pagination (limit, offset or page)."""
     try:
         limit = request.args.get('limit', default=20, type=int)
-        limit = min(limit, 200)  # Cap at 200
-        
+        limit = min(max(1, limit), 200)  # Between 1 and 200
+        offset = request.args.get('offset', default=None, type=int)
+        page = request.args.get('page', default=None, type=int)
+        if page is not None and page >= 1:
+            offset = (page - 1) * limit
+        elif offset is None:
+            offset = 0
+        offset = max(0, offset)
+
         with db.get_session() as session:
+            total = session.query(EventRecord).count()
             recent_events = (
                 session.query(EventRecord)
                 .order_by(EventRecord.ts.desc())
                 .limit(limit)
+                .offset(offset)
                 .all()
             )
-            
             events_data = [{
                 "timestamp": format_timestamp(event.ts),
                 "event_type": event.event_type,
                 "symbol": event.symbol,
                 "payload": event.payload_json
             } for event in recent_events]
-            
+
             return jsonify({
                 "timestamp": datetime.utcnow().isoformat(),
-                "count": len(events_data),
-                "events": events_data
+                "events": events_data,
+                "pagination": {
+                    "limit": limit,
+                    "offset": offset,
+                    "count": len(events_data),
+                    "total": total,
+                    "total_pages": (total + limit - 1) // limit if limit else 0,
+                }
             })
     except Exception as e:
         return jsonify({"error": str(e)}), 500

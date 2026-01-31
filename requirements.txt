@@ -50,5 +50,5 @@ pytrends>=4.9.0
 google-generativeai>=0.3.0
 tavily-python>=0.3.0  # Deep Research fallback (Tavily Search API)
 # Optional: VWAP/OBV/ATR (needs Python 3.12+ and pre-release): pip install --pre pandas-ta
-# pandas-ta  # Uncomment if you use Python 3.12+ and want pandas_ta indicators
+pandas-ta  # Uncomment if you use Python 3.12+ and want pandas_ta indicators
 

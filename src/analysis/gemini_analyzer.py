@@ -378,11 +378,15 @@ class GeminiAnalyzer:
                 strategy_groups[strategy] = []
             strategy_groups[strategy].append(result)
 
-        # System instruction: use News Context to validate technicals
+        # System instruction: use News Context and filter indicators (ADX, Supertrend)
         prompt_parts = [
             "You are a professional trading analyst. Analyze the following securities and provide trade signals.",
             "",
             "Use the News Context to validate the technical indicators. If technicals say BUY but news is overwhelmingly negative (e.g., bankruptcy, fraud, recall), override with HOLD or SELL.",
+            "",
+            "Filter indicators (reduce false positives):",
+            "- If ADX is below 20, the market is sideways/choppy. Be very cautious with breakout trades.",
+            "- Current Supertrend is shown per symbol (BULLISH or BEARISH). Do not take long positions if Supertrend is Bearish.",
             "",
             "For each security, provide:",
             "1. ACTION: BUY, SELL, HOLD, or WATCH",

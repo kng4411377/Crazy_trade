@@ -153,6 +153,12 @@ docs/
 **[CHANGELOG.md](CHANGELOG.md)** - Version history
 - All versions and changes
 - New features by version
+
+**[PAPER_TRAIL.md](PAPER_TRAIL.md)** - Local records and paper trail
+- What is stored (fills, orders, events, snapshots)
+- Using local executed price for crypto stop-loss (cost basis)
+- Event types and payloads for auditing
+- How to query the paper trail
 - Breaking changes
 - Migration guides
 

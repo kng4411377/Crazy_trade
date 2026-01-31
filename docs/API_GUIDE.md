@@ -161,16 +161,17 @@ curl http://localhost:8080/performance
 ---
 
 ### `GET /fills`
-Recent fills (executions)
+Recent fills (executions), **paginated**.
 
 **Parameters:**
-- `limit` (optional): Number of fills to return (default: 20, max: 200)
+- `limit` (optional): Page size (default: 20, max: 200)
+- `offset` (optional): Number of records to skip (default: 0)
+- `page` (optional): Page number (1-based); overrides `offset` when set (`offset = (page-1)*limit`)
 
 **Response:**
 ```json
 {
   "timestamp": "2024-10-31T14:30:00.123456",
-  "count": 20,
   "fills": [
     {
       "timestamp": "2024-10-31 14:25:30",
@@ -181,16 +182,29 @@ Recent fills (executions)
       "order_id": 1001,
       "exec_id": "0001f4e8.67239c8a.01.01"
     }
-  ]
+  ],
+  "pagination": {
+    "limit": 20,
+    "offset": 0,
+    "count": 20,
+    "total": 150,
+    "total_pages": 8
+  }
 }
 ```
 
 **Examples:**
 ```bash
-# Last 20 fills
+# First 20 fills (default)
 curl http://localhost:8080/fills
 
-# Last 50 fills
+# Page 2 (fills 21–40)
+curl "http://localhost:8080/fills?limit=20&page=2"
+
+# Same using offset
+curl "http://localhost:8080/fills?limit=20&offset=20"
+
+# Last 50 fills (no offset)
 curl http://localhost:8080/fills?limit=50
 ```
 
@@ -245,31 +259,45 @@ curl http://localhost:8080/orders?status=Cancelled&limit=20
 ---
 
 ### `GET /events`
-Recent events (audit trail)
+Recent events (paper trail / audit trail), **paginated**.
 
 **Parameters:**
-- `limit` (optional): Number of events to return (default: 20, max: 200)
+- `limit` (optional): Page size (default: 20, max: 200)
+- `offset` (optional): Number of records to skip (default: 0)
+- `page` (optional): Page number (1-based); overrides `offset` when set (`offset = (page-1)*limit`)
 
 **Response:**
 ```json
 {
   "timestamp": "2024-10-31T14:30:00.123456",
-  "count": 20,
   "events": [
     {
       "timestamp": "2024-10-31 14:25:30",
       "event_type": "entry_order_placed",
       "symbol": "TSLA",
-      "payload": "{\"order_id\": 1001, \"qty\": 10}"
+      "payload": {"order_id": 1001, "qty": 10}
     }
-  ]
+  ],
+  "pagination": {
+    "limit": 20,
+    "offset": 0,
+    "count": 20,
+    "total": 500,
+    "total_pages": 25
+  }
 }
 ```
 
 **Examples:**
 ```bash
-# Last 20 events
+# First 20 events (default)
 curl http://localhost:8080/events
+
+# Page 3 (events 41–60)
+curl "http://localhost:8080/events?limit=20&page=3"
+
+# Using offset
+curl "http://localhost:8080/events?limit=20&offset=40"
 
 # Last 100 events
 curl http://localhost:8080/events?limit=100

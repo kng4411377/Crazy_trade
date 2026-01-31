@@ -379,6 +379,14 @@ gemini:
     atr:
       enabled: true                # Volatility (ATR 14)
       period: 14
+    adx:
+      enabled: true                # Trend strength filter (ADX 14); requires pandas_ta
+      period: 14
+      trend_threshold: 25          # is_trending = True if ADX > 25
+    supertrend:
+      enabled: true                # Trend direction filter (length=10, mult=3); requires pandas_ta
+      length: 10
+      multiplier: 3.0
   
   # Signal thresholds
   min_confidence: 0.6              # Minimum AI confidence to act (0-1)

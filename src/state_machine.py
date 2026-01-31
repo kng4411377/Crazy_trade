@@ -234,8 +234,12 @@ class SymbolStateMachine:
             logger.warning("missing_trailing_stop", symbol=self.symbol)
             last_price = await self.alpaca.get_last_price(self.symbol)
             if last_price:
+                entry_from_fills = None
+                if self.config.is_crypto_symbol(self.symbol):
+                    with self.db.get_session() as session:
+                        _open_qty, entry_from_fills = self.db.get_open_position_entry_from_fills(session, self.symbol)
                 order_wrapper = await self.alpaca.place_trailing_stop(
-                    self.symbol, position_qty, last_price
+                    self.symbol, position_qty, last_price, entry_price_from_fills=entry_from_fills
                 )
                 if order_wrapper:
                     with self.db.get_session() as session:
@@ -243,11 +247,19 @@ class SymbolStateMachine:
                             session,
                             self.symbol,
                             last_trail_id=str(order_wrapper.order.id),                        )
+                        trail_pct = self.config.stops.trailing_stop_pct
+                        price_used = entry_from_fills if entry_from_fills else last_price
+                        stop_price_computed = price_used * (1 - trail_pct / 100) if self.config.is_crypto_symbol(self.symbol) else None
                         self.db.add_event(
                             session,
                             event_type="trailing_stop_recreated",
                             symbol=self.symbol,
-                            payload={"order_id": str(order_wrapper.order.id), "qty": position_qty},                        )
+                            payload={
+                                "order_id": str(order_wrapper.order.id), "qty": position_qty,
+                                "entry_price_used": entry_from_fills, "stop_price": stop_price_computed,
+                                "source": "local_fills" if entry_from_fills else "broker_price",
+                            },
+                        )
         elif len(trailing_stops) > 1:
             # Multiple stops - cancel duplicates (keep the first one)
             logger.warning("duplicate_trailing_stops", symbol=self.symbol, count=len(trailing_stops))
@@ -271,12 +283,15 @@ class SymbolStateMachine:
                     position_qty=position_qty,
                     stop_qty=stop_qty,
                 )
-                # Cancel and recreate
                 await self.alpaca.cancel_order(stop_wrapper)
                 last_price = await self.alpaca.get_last_price(self.symbol)
                 if last_price:
+                    entry_from_fills = None
+                    if self.config.is_crypto_symbol(self.symbol):
+                        with self.db.get_session() as session:
+                            _open_qty, entry_from_fills = self.db.get_open_position_entry_from_fills(session, self.symbol)
                     order_wrapper = await self.alpaca.place_trailing_stop(
-                        self.symbol, position_qty, last_price
+                        self.symbol, position_qty, last_price, entry_price_from_fills=entry_from_fills
                     )
                     if order_wrapper:
                         with self.db.get_session() as session:
@@ -284,14 +299,19 @@ class SymbolStateMachine:
                                 session,
                                 self.symbol,
                                 last_trail_id=str(order_wrapper.order.id),                            )
+                            trail_pct = self.config.stops.trailing_stop_pct
+                            price_used = entry_from_fills if entry_from_fills else last_price
+                            stop_price_computed = price_used * (1 - trail_pct / 100) if self.config.is_crypto_symbol(self.symbol) else None
                             self.db.add_event(
                                 session,
                                 event_type="trailing_stop_adjusted",
                                 symbol=self.symbol,
                                 payload={
-                                    "old_qty": stop_qty,
-                                    "new_qty": position_qty,
-                                    "order_id": str(order_wrapper.order.id),                                },
+                                    "old_qty": stop_qty, "new_qty": position_qty,
+                                    "order_id": str(order_wrapper.order.id),
+                                    "entry_price_used": entry_from_fills, "stop_price": stop_price_computed,
+                                    "source": "local_fills" if entry_from_fills else "broker_price",
+                                },
                             )
 
     async def _handle_cooldown(self):
@@ -376,7 +396,11 @@ class SymbolStateMachine:
         """
         logger.info("placing_trailing_stop_after_entry", symbol=self.symbol, qty=qty, entry_price=entry_price)
         
-        order_wrapper = await self.alpaca.place_trailing_stop(self.symbol, qty, entry_price)
+        is_crypto = self.config.is_crypto_symbol(self.symbol)
+        entry_from_fills = entry_price if is_crypto else None
+        order_wrapper = await self.alpaca.place_trailing_stop(
+            self.symbol, qty, entry_price, entry_price_from_fills=entry_from_fills
+        )
         
         if order_wrapper:
             with self.db.get_session() as session:
@@ -386,8 +410,9 @@ class SymbolStateMachine:
                     self.symbol,
                     last_trail_id=str(order_wrapper.order.id),                )
                 
-                # Record order
                 order = order_wrapper.order
+                trail_pct = float(order.trail_percent) if getattr(order, 'trail_percent', None) is not None else self.config.stops.trailing_stop_pct
+                stop_price_computed = (entry_price * (1 - trail_pct / 100)) if is_crypto else None
                 self.db.add_order(
                     session,
                     order_id=str(order.id),                    symbol=self.symbol,
@@ -395,9 +420,9 @@ class SymbolStateMachine:
                     order_type=order.type.value,
                     status=order.status.value,
                     qty=qty,
-                    stop_price=None,
-                    limit_price=None,
-                    trailing_pct=float(order.trail_percent) if getattr(order, 'trail_percent', None) is not None else self.config.stops.trailing_stop_pct,
+                    stop_price=stop_price_computed,
+                    limit_price=float(order.limit_price) if getattr(order, 'limit_price', None) is not None else None,
+                    trailing_pct=trail_pct,
                     parent_id=None,
                 )
                 
@@ -406,7 +431,9 @@ class SymbolStateMachine:
                     event_type="trailing_stop_placed_after_entry",
                     symbol=self.symbol,
                     payload={
-                        "order_id": str(order.id),                        "qty": qty,
+                        "order_id": str(order.id), "qty": qty,
+                        "entry_price_used": entry_price, "stop_price": stop_price_computed,
+                        "source": "local_fill", "is_crypto": is_crypto,
                     },
                 )
             

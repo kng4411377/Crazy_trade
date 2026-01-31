@@ -192,6 +192,48 @@ class DatabaseManager:
             .all()
         )
 
+    def get_open_position_entry_from_fills(
+        self, session: Session, symbol: str
+    ) -> tuple[float, Optional[float]]:
+        """
+        Derive open position size and volume-weighted average entry price from local fills.
+        Uses FIFO: remaining qty after BUYs and SELLs, with cost basis of remaining lots.
+
+        Returns:
+            (open_qty, avg_entry_price). (0, None) if no open position.
+        """
+        fills = (
+            session.query(FillRecord)
+            .filter(FillRecord.symbol == symbol.upper())
+            .order_by(FillRecord.ts.asc())
+            .all()
+        )
+        # FIFO lots: list of (qty, price)
+        lots: list[tuple[float, float]] = []
+        for f in fills:
+            qty = float(f.qty)
+            price = float(f.price)
+            if f.side.upper() == "BUY":
+                lots.append((qty, price))
+            elif f.side.upper() == "SELL":
+                remaining = qty
+                while remaining > 0 and lots:
+                    lot_qty, lot_price = lots[0]
+                    if lot_qty <= remaining:
+                        remaining -= lot_qty
+                        lots.pop(0)
+                    else:
+                        lots[0] = (lot_qty - remaining, lot_price)
+                        remaining = 0
+        if not lots:
+            return (0.0, None)
+        open_qty = sum(lot[0] for lot in lots)
+        if open_qty <= 0:
+            return (0.0, None)
+        cost_basis = sum(lot[0] * lot[1] for lot in lots)
+        avg_entry = cost_basis / open_qty
+        return (open_qty, avg_entry)
+
     def get_active_orders(self, session: Session, symbol: Optional[str] = None) -> list[OrderRecord]:
         """Get active orders (not filled/cancelled)."""
         query = session.query(OrderRecord).filter(

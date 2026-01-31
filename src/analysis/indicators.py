@@ -73,6 +73,14 @@ class IndicatorResult:
     # ATR (volatility)
     atr: Optional[float] = None
 
+    # ADX (trend strength filter)
+    adx: Optional[float] = None
+    is_trending: Optional[bool] = None  # True if ADX > 25
+
+    # Supertrend (trend direction filter)
+    supertrend_direction: Optional[int] = None  # 1 = Bullish, -1 = Bearish
+    supertrend_line: Optional[float] = None
+
     # Price action
     price_change_1d: Optional[float] = None
     price_change_5d: Optional[float] = None
@@ -109,6 +117,14 @@ class IndicatorResult:
             d['obv'] = round(self.obv, 0)
         if self.atr is not None:
             d['atr'] = round(self.atr, 4)
+        if self.adx is not None:
+            d['adx'] = round(self.adx, 2)
+            d['is_trending'] = self.is_trending
+        if self.supertrend_direction is not None:
+            d['supertrend_direction'] = self.supertrend_direction
+            d['supertrend_bullish'] = self.supertrend_direction == 1
+        if self.supertrend_line is not None:
+            d['supertrend_line'] = round(self.supertrend_line, 2)
         return d
 
     def to_summary(self) -> str:
@@ -142,6 +158,13 @@ class IndicatorResult:
 
         if self.price_change_1d is not None:
             lines.append(f"  1D Change: {self.price_change_1d:+.2f}%")
+
+        if self.adx is not None:
+            trend_note = "trending" if self.is_trending else "sideways/choppy"
+            lines.append(f"  ADX: {self.adx:.1f} ({trend_note})")
+        if self.supertrend_direction is not None:
+            direction = "BULLISH" if self.supertrend_direction == 1 else "BEARISH"
+            lines.append(f"  Supertrend: {direction}")
 
         return "\n".join(lines)
 
@@ -185,13 +208,7 @@ class TechnicalIndicators:
             else:
                 effective[key] = value
         return effective
-        
-        # Check dependencies
-        if pd is None or np is None:
-            logger.error("pandas/numpy not installed - indicators will not work")
-        if yf is None:
-            logger.error("yfinance not installed - cannot fetch price data")
-    
+
     def _min_required_bars(self) -> int:
         """Minimum number of candles needed for all enabled indicators (saves CPU)."""
         cfg = self._get_effective_config()
@@ -212,6 +229,11 @@ class TechnicalIndicators:
             min_bars = max(min_bars, cfg.get('atr', {}).get('period', 14) * 2 + 5)
         if cfg.get('vwap', {}).get('enabled', False) or cfg.get('obv', {}).get('enabled', False):
             min_bars = max(min_bars, 50)
+        if cfg.get('adx', {}).get('enabled', True):
+            min_bars = max(min_bars, cfg.get('adx', {}).get('period', 14) * 2 + 5)
+        if cfg.get('supertrend', {}).get('enabled', True):
+            length = cfg.get('supertrend', {}).get('length', 10)
+            min_bars = max(min_bars, length * 3 + 5)
         return min_bars
 
     async def calculate_for_symbol(self, symbol: str, bars: Optional[int] = None) -> Optional[IndicatorResult]:
@@ -309,6 +331,30 @@ class TechnicalIndicators:
             if cfg.get('atr', {}).get('enabled', False):
                 period = cfg.get('atr', {}).get('period', 14)
                 result.atr = self._calculate_atr(df, period)
+
+            # ADX (only if enabled; requires pandas_ta)
+            if cfg.get('adx', {}).get('enabled', True):
+                adx_config = cfg.get('adx', {})
+                adx_val, is_trending = self._calculate_adx(
+                    df,
+                    adx_config.get('period', 14),
+                    adx_config.get('trend_threshold', 25),
+                )
+                if adx_val is not None:
+                    result.adx = adx_val
+                    result.is_trending = is_trending
+
+            # Supertrend (only if enabled; requires pandas_ta)
+            if cfg.get('supertrend', {}).get('enabled', True):
+                st_config = cfg.get('supertrend', {})
+                direction, line = self._calculate_supertrend(
+                    df,
+                    st_config.get('length', 10),
+                    st_config.get('multiplier', 3),
+                )
+                if direction is not None:
+                    result.supertrend_direction = direction
+                    result.supertrend_line = line
 
             # Price changes (lightweight)
             if len(df) >= 2:
@@ -507,6 +553,89 @@ class TechnicalIndicators:
             return float(atr.iloc[-1]) if not pd.isna(atr.iloc[-1]) else None
         except Exception:
             return None
+
+    def _calculate_adx(
+        self, df: pd.DataFrame, period: int = 14, trend_threshold: float = 25.0
+    ) -> tuple[Optional[float], Optional[bool]]:
+        """ADX (Average Directional Index) via pandas_ta. Returns (adx_value, is_trending)."""
+        if ta is None or df is None or len(df) < period + 10:
+            return None, None
+        if 'High' not in df.columns or 'Low' not in df.columns:
+            return None, None
+        try:
+            adx_df = ta.adx(df['High'], df['Low'], df['Close'], length=period)
+            if adx_df is None or adx_df.empty:
+                return None, None
+            # pandas_ta returns DataFrame; find ADX column (e.g. ADX_14, not ADXR_14)
+            adx_col = None
+            for c in adx_df.columns:
+                sc = str(c).upper()
+                if sc.startswith('ADX_') or (sc == 'ADX'):
+                    adx_col = c
+                    break
+            if adx_col is None:
+                for c in adx_df.columns:
+                    if 'ADX' in str(c).upper() and 'ADXR' not in str(c).upper():
+                        adx_col = c
+                        break
+            if adx_col is None:
+                adx_col = adx_df.columns[0] if len(adx_df.columns) else None
+            if adx_col is None:
+                return None, None
+            last = adx_df[adx_col].iloc[-1]
+            if pd.isna(last):
+                return None, None
+            adx_val = float(last)
+            is_trending = adx_val > trend_threshold
+            return adx_val, is_trending
+        except Exception:
+            return None, None
+
+    def _calculate_supertrend(
+        self, df: pd.DataFrame, length: int = 10, multiplier: float = 3.0
+    ) -> tuple[Optional[int], Optional[float]]:
+        """Supertrend via pandas_ta. Returns (direction: 1=Bullish, -1=Bearish, line_value)."""
+        if ta is None or df is None or len(df) < length + 5:
+            return None, None
+        if 'High' not in df.columns or 'Low' not in df.columns:
+            return None, None
+        try:
+            st_df = ta.supertrend(df['High'], df['Low'], df['Close'], length=length, multiplier=multiplier)
+            if st_df is None or st_df.empty:
+                return None, None
+            # Columns like SUPERT_10_3.0 and SUPERTd_10_3.0 (d = direction)
+            direction_col = None
+            line_col = None
+            for c in st_df.columns:
+                s = str(c)
+                if 'SUPERTd' in s or ('SUPERT' in s and 'd' in s.lower()):
+                    direction_col = c
+                elif 'SUPERT' in s and direction_col != c:
+                    line_col = c
+            if direction_col is None:
+                for c in st_df.columns:
+                    if 'SUPERT' in str(c):
+                        if line_col is None:
+                            line_col = c
+                        else:
+                            direction_col = c
+                        break
+            if direction_col is None and line_col is not None:
+                direction_col = [x for x in st_df.columns if x != line_col and 'SUPERT' in str(x)]
+                direction_col = direction_col[0] if direction_col else None
+            if direction_col is None:
+                direction_col = st_df.columns[-1] if len(st_df.columns) >= 2 else st_df.columns[0]
+            if line_col is None:
+                line_col = st_df.columns[0]
+            d_last = st_df[direction_col].iloc[-1]
+            l_last = st_df[line_col].iloc[-1]
+            if pd.isna(d_last):
+                return None, None
+            direction = int(d_last) if abs(float(d_last)) >= 0.5 else (1 if float(d_last) >= 0 else -1)
+            line_val = float(l_last) if not pd.isna(l_last) else None
+            return direction, line_val
+        except Exception:
+            return None, None
 
     def clear_cache(self):
         """Clear the indicator cache."""
