@@ -86,6 +86,8 @@ class GeminiAnalyzer:
         self.model_name = config.get('model', 'gemini-2.0-flash')
         self.call_interval = config.get('call_interval_seconds', 60)
         self.timeout = config.get('timeout_seconds', 30)
+        self.retry_429_max = config.get('retry_429_max_attempts', 3)
+        self.retry_429_backoff_base = config.get('retry_429_backoff_seconds', 60)
         
         # Data source toggles
         self.enable_stocks = config.get('enable_stocks', True)
@@ -411,36 +413,60 @@ class GeminiAnalyzer:
 
         return "\n".join(prompt_parts)
     
+    def _is_rate_limit_error(self, e: Exception) -> bool:
+        """True if exception is 429 / resource exhausted."""
+        msg = str(e).upper()
+        return "429" in msg or "RESOURCE_EXHAUSTED" in msg or "QUOTA" in msg or "RATE" in msg
+
     async def _call_gemini(self, prompt: str) -> Optional[str]:
-        """Make the API call to Gemini."""
+        """Make the API call to Gemini. Retries on 429 with backoff."""
         if not self._client:
             return None
-        
-        try:
-            self._last_call_time = datetime.now()
-            
-            response = await asyncio.wait_for(
-                self._client.aio.models.generate_content(
-                    model=self.model_name,
-                    contents=prompt,
-                ),
-                timeout=self.timeout
-            )
-            
-            text = getattr(response, "text", None) if response else None
-            if text:
-                if self.log_responses:
-                    logger.info("gemini_response_received", length=len(text))
-                return text
-            
-            return None
-            
-        except asyncio.TimeoutError:
-            logger.error("gemini_api_timeout")
-            return None
-        except Exception as e:
-            logger.error("gemini_api_error", error=str(e))
-            return None
+
+        # Mark that we're attempting a call so the main loop won't try again for call_interval
+        # (even if we get 429; otherwise we'd attempt every loop ~15–20s and blow past 1/min)
+        self._last_call_time = datetime.now()
+
+        last_error = None
+        for attempt in range(self.retry_429_max + 1):
+            try:
+                response = await asyncio.wait_for(
+                    self._client.aio.models.generate_content(
+                        model=self.model_name,
+                        contents=prompt,
+                    ),
+                    timeout=self.timeout
+                )
+
+                text = getattr(response, "text", None) if response else None
+                if text:
+                    if self.log_responses:
+                        logger.info("gemini_response_received", length=len(text))
+                    return text
+                return None
+
+            except asyncio.TimeoutError:
+                logger.error("gemini_api_timeout")
+                return None
+            except Exception as e:
+                last_error = e
+                if self._is_rate_limit_error(e) and attempt < self.retry_429_max:
+                    backoff = self.retry_429_backoff_base * (2 ** attempt)
+                    logger.warning(
+                        "gemini_429_retry",
+                        attempt=attempt + 1,
+                        max_attempts=self.retry_429_max + 1,
+                        backoff_seconds=backoff,
+                        error=str(e)[:200],
+                    )
+                    await asyncio.sleep(backoff)
+                    continue
+                logger.error("gemini_api_error", error=str(e))
+                return None
+
+        if last_error:
+            logger.error("gemini_api_error", error=str(last_error))
+        return None
     
     def _parse_response(
         self,

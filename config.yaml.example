@@ -333,8 +333,10 @@ gemini:
   
   # API Settings
   model: "gemini-2.0-flash"       # Model to use; if 404 try "gemini-1.5-flash" or "gemini-pro"
-  call_interval_seconds: 60        # Minimum seconds between API calls
+  call_interval_seconds: 60        # Minimum seconds between API calls (increase to 90–120 if you hit 429)
   timeout_seconds: 30              # API call timeout
+  retry_429_max_attempts: 3        # Retries on 429 (resource exhausted) with backoff
+  retry_429_backoff_seconds: 60    # Base backoff in seconds (doubles each retry: 60, 120, 240)
   
   # Data sources toggle
   enable_stocks: true              # Analyze stocks from dynamic watchlist
