@@ -49,6 +49,6 @@ pytrends>=4.9.0
 # Gemini AI Analysis Layer (google.genai; requires Python 3.10+)
 google-genai>=1.0.0
 tavily-python>=0.3.0  # Deep Research fallback (Tavily Search API)
-# Optional: VWAP/OBV/ATR (needs Python 3.12+ and pre-release): pip install --pre pandas-ta
-pandas-ta  # Uncomment if you use Python 3.12+ and want pandas_ta indicators
+# ADX/Supertrend indicators (requires Python 3.10–3.13; numba does not support 3.14)
+pandas-ta
 

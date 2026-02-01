@@ -19,6 +19,13 @@
 //   pm2 stop all
 //   pm2 delete all
 //
+// Log rotation (recommended so ./logs/*.log don't grow forever):
+//   pm2 install pm2-logrotate
+//   pm2 set pm2-logrotate:max_size 50M
+//   pm2 set pm2-logrotate:retain 7
+//   pm2 set pm2-logrotate:compress true
+// Optional: rotate daily at midnight: pm2 set pm2-logrotate:rotateInterval "0 0 * * *"
+//
 // Note: health_status.json is written by crazy-trade-monitor; the bot reads it
 // each loop to enable low_power_mode (RSI-only indicators) when CPU/temp is high.
 
