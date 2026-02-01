@@ -4,10 +4,13 @@
 import sys
 import asyncio
 from pathlib import Path
-from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+# Load .env if python-dotenv is installed (optional; env can also come from secrets.yaml or system)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent))
