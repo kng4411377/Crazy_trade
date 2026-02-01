@@ -185,22 +185,24 @@ async def test_gemini() -> bool:
             print_info("Add to secrets.yaml under gemini.api_key")
             return True  # Not a failure, just skipped
         
-        print("\n  Importing google-generativeai...")
+        print("\n  Importing google-genai...")
         try:
-            import google.generativeai as genai
+            from google import genai
         except ImportError:
-            print_fail("google-generativeai not installed")
-            print_info("Run: pip install google-generativeai")
+            print_fail("google-genai not installed")
+            print_info("Run: pip install google-genai")
             return False
         
-        print("\n  Configuring Gemini...")
-        genai.configure(api_key=api_key)
+        print("\n  Creating Gemini client...")
+        client = genai.Client(api_key=api_key)
         
         print("\n  Testing API connection...")
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        response = model.generate_content("Say 'Hello, trading bot!' in one line.")
+        response = client.models.generate_content(
+            model="gemini-1.5-flash",
+            contents="Say 'Hello, trading bot!' in one line.",
+        )
         
-        if response and response.text:
+        if response and getattr(response, "text", None):
             print_pass(f"Gemini response: {response.text.strip()[:50]}")
             return True
         else:

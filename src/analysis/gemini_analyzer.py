@@ -14,7 +14,7 @@ from dataclasses import dataclass
 import structlog
 
 try:
-    import google.generativeai as genai
+    from google import genai
 except ImportError:
     genai = None
 
@@ -123,7 +123,7 @@ class GeminiAnalyzer:
 
         # State
         self._last_call_time: Optional[datetime] = None
-        self._model = None
+        self._client = None
         self._initialized = False
         
         logger.info(
@@ -146,7 +146,7 @@ class GeminiAnalyzer:
             return True
         
         if genai is None:
-            logger.error("google-generativeai package not installed")
+            logger.error("google-genai package not installed")
             return False
         
         try:
@@ -179,23 +179,20 @@ class GeminiAnalyzer:
                 logger.error("GEMINI_API_KEY not found in environment, .env, or secrets.yaml")
                 return False
             
-            # Configure Gemini
-            genai.configure(api_key=api_key)
+            # Create client (Google Gen AI SDK)
+            self._client = genai.Client(api_key=api_key)
             
-            # Initialize model
-            self._model = genai.GenerativeModel(self.model_name)
-            
-            # Test connection with a simple prompt
+            # Test connection with a simple prompt (async)
             try:
                 response = await asyncio.wait_for(
-                    asyncio.get_event_loop().run_in_executor(
-                        None,
-                        lambda: self._model.generate_content("Say 'OK' if you're ready.")
+                    self._client.aio.models.generate_content(
+                        model=self.model_name,
+                        contents="Say 'OK' if you're ready.",
                     ),
                     timeout=10
                 )
                 
-                if response and response.text:
+                if response and getattr(response, "text", None):
                     self._initialized = True
                     logger.info("gemini_analyzer_initialized", model=self.model_name)
                     return True
@@ -416,25 +413,25 @@ class GeminiAnalyzer:
     
     async def _call_gemini(self, prompt: str) -> Optional[str]:
         """Make the API call to Gemini."""
-        if not self._model:
+        if not self._client:
             return None
         
         try:
             self._last_call_time = datetime.now()
             
-            # Call in executor (synchronous SDK)
             response = await asyncio.wait_for(
-                asyncio.get_event_loop().run_in_executor(
-                    None,
-                    lambda: self._model.generate_content(prompt)
+                self._client.aio.models.generate_content(
+                    model=self.model_name,
+                    contents=prompt,
                 ),
                 timeout=self.timeout
             )
             
-            if response and response.text:
+            text = getattr(response, "text", None) if response else None
+            if text:
                 if self.log_responses:
-                    logger.info("gemini_response_received", length=len(response.text))
-                return response.text
+                    logger.info("gemini_response_received", length=len(text))
+                return text
             
             return None
             

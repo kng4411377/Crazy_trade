@@ -59,24 +59,26 @@ async def test_gemini_api():
     print("\n✅ API key found")
     
     try:
-        import google.generativeai as genai
+        from google import genai
     except ImportError:
-        print("\n❌ google-generativeai not installed")
-        print("   Run: pip install google-generativeai")
+        print("\n❌ google-genai not installed")
+        print("   Run: pip install google-genai")
         return False
     
-    print("✅ google-generativeai imported")
+    print("✅ google-genai imported")
     
-    # Configure
-    genai.configure(api_key=api_key)
-    print("✅ Gemini configured")
+    # Create client
+    client = genai.Client(api_key=api_key)
+    print("✅ Gemini client created")
     
     # Test simple call
     print("\n📤 Sending test prompt...")
-    model = genai.GenerativeModel('gemini-1.5-flash')
-    response = model.generate_content("Respond with just 'OK' if you're working.")
+    response = client.models.generate_content(
+        model="gemini-1.5-flash",
+        contents="Respond with just 'OK' if you're working.",
+    )
     
-    if response and response.text:
+    if response and getattr(response, "text", None):
         print(f"📥 Response: {response.text.strip()}")
         print("\n✅ Gemini API is working!")
         return True

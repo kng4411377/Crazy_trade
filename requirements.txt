@@ -46,8 +46,8 @@ python-dotenv>=1.0.0
 yfinance>=0.2.32,<1.0  # Pin to 0.x for Python 3.9 compatibility
 pytrends>=4.9.0
 
-# Gemini AI Analysis Layer
-google-generativeai>=0.3.0
+# Gemini AI Analysis Layer (google.genai; requires Python 3.10+)
+google-genai>=1.0.0
 tavily-python>=0.3.0  # Deep Research fallback (Tavily Search API)
 # Optional: VWAP/OBV/ATR (needs Python 3.12+ and pre-release): pip install --pre pandas-ta
 pandas-ta  # Uncomment if you use Python 3.12+ and want pandas_ta indicators
